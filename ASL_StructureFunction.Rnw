@@ -9,6 +9,7 @@
 \usepackage{booktabs}
 \usepackage{pslatex}
 \usepackage{setspace}
+\usepackage{subcaption}
 \usepackage[colorlinks=true,citecolor=blue]{hyperref}
 
 \DeclareMathSymbol{\Gamma}{\mathalpha}{operators}{0}
@@ -41,16 +42,14 @@ We propose a general method that uses non-local features from one imaging modali
 \end{abstract}
 
 \section{Introduction}
-Many modalities of medical imaging contain information that can be partially captured by other modalities.  For example, perfusion of the brain is partially determined by the structure of the brain, which is in turn captured by T1 or other structural imaging modalities \cite{villain_relationships_2008,chetelat_direct_2008}; and conversely, brain perfusion may contribute to cortical thickness patterns \cite{fierstra_steal_2010} and T1 imaging maps \cite{franklin_vbm_2013}.  To improve interpretability of perfusion images, it is common to correct the image for information contained in the structural image.  In particular, many perfusion image processing protocols correct the perfusion image for partial voluming effects.  We seek to reframe this question in a broader context:  Given a perfusion image and a structural anatomical image, how much information is unique to the perfusion image, and how much of the perfusion image can be reconstructed given the structural image? 
+Many modalities of medical imaging contain information that can be partially captured by other modalities.  For example, perfusion of the brain is partially determined by the structure of the brain, which is in turn captured by T1 or other structural imaging modalities \cite{villain_relationships_2008,chetelat_direct_2008}; and conversely, brain perfusion may contribute to cortical thickness patterns \cite{fierstra_steal_2010} and T1 imaging maps \cite{salgado-pineda_brain_2006,franklin_vbm_2013}.  To improve interpretability of perfusion images, it is common to correct the image for information contained in the structural image.  In particular, many perfusion image processing protocols correct the perfusion image for partial voluming effects.  We seek to reframe this question in a broader context:  Given a perfusion image and a structural anatomical image, how much information is unique to the perfusion image, and how much of the perfusion image can be reconstructed given the structural image? 
 
 As a motivating example problem, we consider perfusion measurements of normally developing adolescents.  Perfusion studies of normally developing children have shown changes over development \cite{chiron_changes_1992,wintermark_brain_2004,biagi_age_2007,jain_longitudinal_2012}.  In parallel, many studies have focused on structural brain changes over development, including such metrics as cortical thickness \cite{shaw_neurodevelopmental_2008} and white matter structure \cite{tamnes_brain_2010} (more citations--there are hundreds).  Some of the changes in perfusion are likely due to development of the underlying anatomical substrate, including such developments as cortical thickness, gyrification indices \cite{blanton_mapping_2001,su_geometric_2013}, and possibly other, more subtle anatomical changes.  On the other hand, it is possible that some of the changes in perfusion are due only to changes in the perfusion of specific cortical areas that are not explained by structural changes.  We seek to improve the interpretability of perfusion imaging by separating the component of cortical perfusion that can be explained by structural features from the component of cortical perfusion that is due to biological processes that are not driven by the underlying anatomy.  This separation will help evaluate what unique information is gained by using perfusion imaging as compared to anatomical imaging modalities, thus enabling more principled and informative integration of perfusion imaging into multimodal neuroimaging population studies. 
 
 Several image processing strategies incorporate knowledge of one modality to improve the interpretability of a second modality, especially where the two modalities offer complementary sources of information.  One of the most commonly encountered variants of this problem occurs in positron emission tomograpy (PET) image processing.  PET images have low spatial resolution, leading to significant partial volume effects.  A widespread method for correcting these partial volume effects is to divide the PET image by gray and white matter probability images (e.g., \cite{muller-gartner_measurement_1992}).  By assuming that PET activity within white matter is known, it is then possible to reconstruct the amount of signal that would have resulted from a purely gray matter voxel.  Similar strategies have been pursued for arterial spin labeling (ASL) perfusion \cite{williams_magnetic_1992} partial volume corrections.  Many ASL partial volume correction methods assume that white matter has perfusion that is 40\% of a comparable unit of gray matter \cite{johnson_pattern_2005}, based on quantitative in-vivo measures of ASL perfusion \cite{roberts_quantitative_1994}.  More sophisticated models include partial volume corrections based on locally determined gray matter activation \cite{asllani_regression_2008,asllani_separating_2009}, a kinetic equation for multiple inversion time ASL \cite{chappell_partial_2011}, and specially designed pulse sequences \cite{petr_partial_2012}. 
 
-We propose a method for separating structural from purely functional components of perfusion images that allows richer and more subtle interactions between structural and functional images.    We seek to disentagle the information in a perfusion image from the information already known from the structural image by using relatively recent advances in image-based learning \cite{ranzato_unsupervised_2007}. This approach results in a ``pure'' perfusion image that may be more interpretable than the original perfusion image, as it represents the perfusion patterns that would not be already known from the structural image.  In addition to correcting for pure partial volume effect, this method allows for more flexible corrections based on atrophy, texture, presence of sulci and gyri, and other structural information that is not captured by local voxel-wise approaches. Along these lines, previous studies \cite{schuff_cerebral_2009} have used  linear regression-based approaches for partial volume correction that incorporate some bias terms to correct for brain lesions.  We extend those methods here to incorporate as much structural information as possible for predicting perfusion data.  The output of our decomposition method is in the same units as the input image, and can be interpreted as the actual perfusion relative to what would be expected based on the available structural information.    The method we use to construct the feature representation of the input image is inspired by feature learning methods \cite{ranzato_unsupervised_2007} and modality synthesis algorithms \cite{hertzmann_image_2001,wang_deringing_2006,rueda_single-image_2013,rousseau_non-local_2010}.  Our novel decomposition of ASL-CBF images enables them to be included in population studies either as measures of purely functional variability or as representations of the relationship between CBF and the underlying GM substrate.  A graphical abstract of our method is shown in Figure \ref{fig:flowchart}.
+We propose a method for separating structural from purely functional components of perfusion images that allows richer and more subtle interactions between structural and functional images.    We seek to disentagle the information in a perfusion image from the information already known from the structural image by using relatively recent advances in image-based learning \cite{ranzato_unsupervised_2007}. This approach results in a ``pure'' perfusion image that may be more interpretable than the original perfusion image, as it represents the perfusion patterns that would not be already known from the structural image.  In addition to correcting for pure partial volume effect, this method allows for more flexible corrections based on atrophy, texture, presence of sulci and gyri, and other structural information that is not captured by local voxel-wise approaches. Along these lines, previous studies \cite{schuff_cerebral_2009} have used  linear regression-based approaches for partial volume correction that incorporate some bias terms to correct for brain lesions.  We extend those methods here to incorporate as much structural information as possible for predicting perfusion data.  The output of our decomposition method is in the same units as the input image, and can be interpreted as the actual perfusion relative to what would be expected based on the available structural information.    The method we use to construct the feature representation of the input image is inspired by feature learning methods \cite{ranzato_unsupervised_2007}, rotation-invariant feature transforms \cite{lowe_object_1999,ke_pca-sift:_2004,bay_surf:_2006,toews_efficient_2013} and modality synthesis algorithms \cite{hertzmann_image_2001,wang_deringing_2006,rueda_single-image_2013,rousseau_non-local_2010}.  Our novel decomposition of ASL-CBF images enables them to be included in population studies either as measures of purely functional variability or as representations of the relationship between CBF and the underlying GM substrate.  A graphical abstract of our method is shown in Figure \ref{fig:flowchart}.
 
-\subsection{Related Work}
-Much work has been done in predict
 
 \begin{figure}
 \centering
@@ -58,7 +57,7 @@ Much work has been done in predict
 \caption{Graphical abstract of proposed method.  Patches are sampled from image in modality 1 (here, T1) and eigendecomposition is used to learn optimal features (``eigenpatches'') to describe patches.  Patches corresponding to each point in the image are then projected onto the ``eigenpatches'' to create a representation of the input image in feature space.  We then use linear regression to predict the second image (here, perfusion image) from the feature-based description of the first image.  This enables us to decompose the perfusion image into a component that is predicted from the structural image and the unique contribution of the perfusion image.}
 \label{fig:flowchart}
 \end{figure}
-We make the following contributions: 1) We provide a novel method for learning the features of a given image modality, using minimal prior information, that best predict the output of another imaging modality; 2) We show that these features are significantly better at predicting perfusion than segmentation probability maps; 3) We demonstrate that this method produces consistent perfusion maps across session scans within a single subject; 4) We show that this method finds meaningful differences between traumatic brain injury patients and controls that would not have been found using standard partial volume correction.
+FIXME--this needs to be updated.  We make the following contributions: 1) We provide a novel method for learning the features of a given image modality, using minimal prior information, that best predict the output of another imaging modality; 2) We show that these features are significantly better at predicting perfusion than segmentation probability maps; 3) We demonstrate that this method produces consistent perfusion maps across session scans within a single subject; 4) We show that this method finds meaningful differences between traumatic brain injury patients and controls that would not have been found using standard partial volume correction.
 
 \section{Methods}
 \subsection{Feature Learning}
@@ -130,9 +129,104 @@ No significant difference existed between age or education in the patient or con
 
 \textbf{Image Preprocessing:} The set of T1 images from each subject's first time points was used to construct a template using ANTs \cite{avants_reproducible_2011}. Additionally, a three-tissue segmentation of the template \cite{avants_open_2011} allowed the labels to be partially masked so only cortex and deep gray structures were labeled. For each time point, the T1 image was registered to the template image. Additionally, registration was used to find an intra-subject mapping between the T1 image and the M0 image that is acquired as a reference for the PASL acquisition. These transforms were composed to map the cortical labels into ASL native space for each time point. For PASL images, the M0 image served as a reference for motion-correction of all time-point volumes. Sinc interpolation was used to estimate the full time-series for both the control and tag data. The difference between control and tag was used along with relevant acquisition parameters to calculate the ASL-CBF over time, while the average of the two signals was calculated for ASL-BOLD.
 
-\vspace{-0.3cm}
 \section{Results}
-\vspace{-0.3cm}
+\subsection{Synthetic Data}
+
+<<synthetic, echo=FALSE, eval=FALSE, warning=FALSE, results='hide'>>=
+suppressMessages(require(ANTsR))
+system("~/bin/PatchAnalysis/PatchAnalysis -i data/imgs/Structural.nii.gz -m data/imgs/Structural.nii.gz -e data/test_eig -p data/projectedOrientationInvariant -o ")
+t1 <- antsImageRead('data/imgs/Structural.nii.gz', 2)
+asl <- antsImageRead('data/imgs/Functional.nii.gz', 2)
+plotANTsImage(t1, outname='fig/SyntheticStructural.png')
+plotANTsImage(asl, outname='fig/SyntheticFunctional.png')
+coeffs <- t(as.array(antsImageRead('data/projectedOrientationInvariant.mha', 2)))
+class(coeffs) <- "numeric"
+mask <- antsImageRead('data/imgs/Structural.nii.gz', 2)
+asl.data = asl[mask > 0]
+mydata <- data.frame(asl=asl.data, coeffs=coeffs)
+myformula <- "asl ~ coeffs.1"
+for( i in 3:length(names(mydata))){
+  myformula <- paste(myformula, '+', names(mydata)[i])
+}
+mylm <- lm(myformula, data=mydata)
+summary(mylm)
+asl.functional <- antsImageClone(t1)
+asl.functional[mask>0] <- residuals(mylm)
+antsImageWrite(asl.functional, 'data/imgs/OnlyFunctionOrientationInvariant.nii.gz')
+plotANTsImage(asl.functional, outname='fig/OnlyFunctionOrientationInvariant.png')
+asl.struct <- antsImageClone(t1)
+asl.struct[mask>0] <- mylm$fitted.values
+antsImageWrite(asl.struct, 'FunctionFromStructureOrientationInvariant.nii.gz')
+plotANTsImage(asl.struct, outname='fig/FunctionFromStructureOrientationInvariant.png')
+
+
+
+system("~/bin/PatchAnalysis/PatchAnalysis -i data/imgs/Structural.nii.gz -m data/imgs/Structural.nii.gz -e data/OrientationInvariantEig -p data/projectedOrientationVariant ")
+t1 <- antsImageRead('data/imgs/Structural.nii.gz', 2)
+asl <- antsImageRead('data/imgs/Functional.nii.gz', 2)
+coeffs.var <- t(as.array(antsImageRead('data/projectedOrientationVariant.mha', 2)))
+class(coeffs.var) <- "numeric"
+mask <- antsImageRead('data/imgs/Structural.nii.gz', 2)
+asl.data = asl[mask > 0]
+mydata <- data.frame(asl=asl.data, coeffs=coeffs.var)
+myformula <- "asl ~ coeffs.1"
+for( i in 3:length(names(mydata))){
+  myformula <- paste(myformula, '+', names(mydata)[i])
+}
+mylm <- lm(myformula, data=mydata)
+summary(mylm)
+asl.functional <- antsImageClone(t1)
+asl.functional[mask>0] <- residuals(mylm)
+antsImageWrite(asl.functional, 'data/imgs/OnlyFunctionOrientationVariant.nii.gz')
+plotANTsImage(asl.functional, outname='fig/OnlyFunctionalOrientationVariant.png')
+asl.struct <- antsImageClone(t1)
+asl.struct[mask>0] <- mylm$fitted.values
+antsImageWrite(asl.struct, 'data/imgs/FunctionFromStructureOrientationVariant.nii.gz')
+plotANTsImage(asl.struct, outname='fig/FunctionFromStructureOrientationVariant.png')
+
+
+@
+
+\begin{figure}
+\centering
+  \begin{subfigure}{5cm}
+    \includegraphics[width=5cm]{fig/SyntheticStructural.png}
+    \caption{Synthetic ``structural'' data.}
+  \end{subfigure}
+  \begin{subfigure}{5cm}
+    \includegraphics[width=5cm]{fig/SyntheticFunctional.png}
+    \caption{Synthetic ``functional'' data.}
+  \end{subfigure}
+\caption{Synthetic ``structural'' and ``functional'' data used in the simulation experiments.  Some aspects of the functional data, such as the higher activity at the intersection of the lines, can be deduced from the structural data (the intersection of the lines), but other aspects of the functional data, such as the increased activity on the upper right line, cannot be deduced from the structural information and represents a ``purely'' functional increase.}
+\label{fig:synthetic_data}
+\end{figure}
+
+\begin{figure}
+\centering
+  \begin{subfigure}[t]{5cm}
+    \includegraphics[width=5cm]{fig/OnlyFunctionOrientationInvariant.png}
+    \caption{``Purely functional'' signal, analyzed using orientation invariant features.}
+    \label{fig:only_functional_orientation_invariant}
+  \end{subfigure}
+  \begin{subfigure}[t]{5cm}
+    \includegraphics[width=5cm]{fig/FunctionFromStructureOrientationInvariant.png}
+    \caption{Functional signal that can be reproduced from structure, using orientation invariant features.}
+    \label{fig:function_structure_orientation_invariant}
+  \end{subfigure}
+  \begin{subfigure}{5cm}
+    \includegraphics[width=5cm]{fig/OnlyFunctionalOrientationVariant.png}
+    \caption{``Purely functional'' signal, analyzed using non-orientation invariant features. }
+    \label{fig:only_function_orientation_variant}
+  \end{subfigure}
+  \begin{subfigure}{5cm}
+    \includegraphics[width=5cm]{fig/FunctionFromStructureOrientationVariant.png}
+    \caption{Functional signal that can be reproduced from structure, using non-orientation invariant features.}
+    \label{fig:function_structure_orientation_variant}
+  \end{subfigure}
+\caption{\ref{fig:only_functional_orientation_invariant}, \ref{fig:function_structure_orientation_invariant}: ``Purely'' functional and structural decomposition of the synthetic data from Figure \ref{fig:synthetic_data}.  Because orientation invariant features were used, the orientation of the lines does not influence the predicted functional signal, but the intersection of the lines does indicate a greater predicted functional signal.  \ref{fig:only_function_orientation_variant},\ref{fig:function_structure_orientation_variant}: Decomposition of synthetic data using non-rotational invariant features.  The orientation of the lines is now used in the decomposition. }
+\label{fig:synthetic_decomposition}
+\end{figure}
+
 In comparison to using only segmentation probability maps, we: 1) assess the ability of our method to predict function from structure quantitatively in terms of variance explained; 2) determine the repeatability of our method in predicting perfusion data from test-retest data of the same subject; and 3) identify how this approach impacts findings in a population study. 
 
 
