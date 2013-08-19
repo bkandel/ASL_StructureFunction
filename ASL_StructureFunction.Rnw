@@ -1,0 +1,154 @@
+\documentclass{elsarticle}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{pslatex}
+\usepackage{setspace}
+\usepackage[colorlinks=true,citecolor=blue]{hyperref}
+
+\DeclareMathSymbol{\Gamma}{\mathalpha}{operators}{0}
+\DeclareMathSymbol{\Delta}{\mathalpha}{operators}{1}
+\DeclareMathSymbol{\Theta}{\mathalpha}{operators}{2}
+\DeclareMathSymbol{\Lambda}{\mathalpha}{operators}{3}
+\DeclareMathSymbol{\Xi}{\mathalpha}{operators}{4}
+\DeclareMathSymbol{\Pi}{\mathalpha}{operators}{5}
+\DeclareMathSymbol{\Sigma}{\mathalpha}{operators}{6}
+\DeclareMathSymbol{\Upsilon}{\mathalpha}{operators}{7}
+\DeclareMathSymbol{\Phi}{\mathalpha}{operators}{8}
+\DeclareMathSymbol{\Psi}{\mathalpha}{operators}{9}
+\DeclareMathSymbol{\Omega}{\mathalpha}{operators}{10}
+\newcommand{\transpose}{^\mathrm{T}}
+\newcommand{\GM}{\mathrm{GM}}
+\newcommand{\WM}{\mathrm{WM}}
+\newcommand{\CSF}{\mathrm{CSF}}
+\def\naive{na\"{\i}ve }
+
+
+
+\title{Decomposing cerebral blood flow MRI into functional and structural components:  A non-local approach based on prediction}
+
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We propose a general method that uses non-local features from one imaging modality (the anatomical modality) to learn and predict the result of a second modality (the functional modality) where both modalities are collected from the same subject. Our method first summarizes the anatomical imaging data by sampling patch-based representations within an orientation invariant reference frame. This first (relatively standard) step yields a basis (or dictionary) for the anatomical modality at a specific spatial scale. The novelty in our contribution comes from using this anatomical basis set to decompose the functional signal into a purely structural and purely functional component. To achieve this, we use the anatomical basis to identify the degree to which the functional modality can be predicted from the anatomical feature space.  The result of this analysis is that, at each voxel in the functional space, we have both the purely functional and purely structural signal component. We apply this model to separating structural signal from pure cerebral blood flow signal in arterial spin labeling perfusion imaging. We demonstrate that this method reveals a greater degree of structural and functional relationship than standard segmentation-based methods, such as classical partial volume correction. Furthermore, we illustrate how this method may be used within a population study to identify specific functional differences between populations while accounting for the subject-specific structural substrate.
+\end{abstract}
+
+\section{Introduction}
+Many modalities of medical imaging contain information that can be partially captured by other modalities.  For example, perfusion of the brain is partially determined by the structure of the brain, which is in turn captured by T1 or other structural imaging modalities \cite{villain_relationships_2008,chetelat_direct_2008}; and conversely, brain perfusion may contribute to cortical thickness patterns \cite{fierstra_steal_2010} and T1 imaging maps \cite{franklin_vbm_2013}.  To improve interpretability of perfusion images, it is common to correct the image for information contained in the structural image.  In particular, many perfusion image processing protocols correct the perfusion image for partial voluming effects.  We seek to reframe this question in a broader context:  Given a perfusion image and a structural anatomical image, how much information is unique to the perfusion image, and how much of the perfusion image can be reconstructed given the structural image? 
+
+As a motivating example problem, we consider perfusion measurements of normally developing adolescents.  Perfusion studies of normally developing children have shown changes over development \cite{chiron_changes_1992,wintermark_brain_2004,biagi_age_2007,jain_longitudinal_2012}.  In parallel, many studies have focused on structural brain changes over development, including such metrics as cortical thickness \cite{shaw_neurodevelopmental_2008} and white matter structure \cite{tamnes_brain_2010} (more citations--there are hundreds).  Some of the changes in perfusion are likely due to development of the underlying anatomical substrate, including such developments as cortical thickness, gyrification indices \cite{blanton_mapping_2001,su_geometric_2013}, and possibly other, more subtle anatomical changes.  On the other hand, it is possible that some of the changes in perfusion are due only to changes in the perfusion of specific cortical areas that are not explained by structural changes.  We seek to improve the interpretability of perfusion imaging by separating the component of cortical perfusion that can be explained by structural features from the component of cortical perfusion that is due to biological processes that are not driven by the underlying anatomy.  This separation will help evaluate what unique information is gained by using perfusion imaging as compared to anatomical imaging modalities, thus enabling more principled and informative integration of perfusion imaging into multimodal neuroimaging population studies. 
+
+Several image processing strategies incorporate knowledge of one modality to improve the interpretability of a second modality, especially where the two modalities offer complementary sources of information.  One of the most commonly encountered variants of this problem occurs in positron emission tomograpy (PET) image processing.  PET images have low spatial resolution, leading to significant partial volume effects.  A widespread method for correcting these partial volume effects is to divide the PET image by gray and white matter probability images (e.g., \cite{muller-gartner_measurement_1992}).  By assuming that PET activity within white matter is known, it is then possible to reconstruct the amount of signal that would have resulted from a purely gray matter voxel.  Similar strategies have been pursued for arterial spin labeling (ASL) perfusion \cite{williams_magnetic_1992} partial volume corrections.  Many ASL partial volume correction methods assume that white matter has perfusion that is 40\% of a comparable unit of gray matter \cite{johnson_pattern_2005}, based on quantitative in-vivo measures of ASL perfusion \cite{roberts_quantitative_1994}.  More sophisticated models include partial volume corrections based on locally determined gray matter activation \cite{asllani_regression_2008,asllani_separating_2009}, a kinetic equation for multiple inversion time ASL \cite{chappell_partial_2011}, and specially designed pulse sequences \cite{petr_partial_2012}. 
+
+We propose a method for separating structural from purely functional components of perfusion images that allows richer and more subtle interactions between structural and functional images.    We seek to disentagle the information in a perfusion image from the information already known from the structural image by using relatively recent advances in image-based learning \cite{ranzato_unsupervised_2007}. This approach results in a ``pure'' perfusion image that may be more interpretable than the original perfusion image, as it represents the perfusion patterns that would not be already known from the structural image.  In addition to correcting for pure partial volume effect, this method allows for more flexible corrections based on atrophy, texture, presence of sulci and gyri, and other structural information that is not captured by local voxel-wise approaches. Along these lines, previous studies \cite{schuff_cerebral_2009} have used  linear regression-based approaches for partial volume correction that incorporate some bias terms to correct for brain lesions.  We extend those methods here to incorporate as much structural information as possible for predicting perfusion data.  The output of our decomposition method is in the same units as the input image, and can be interpreted as the actual perfusion relative to what would be expected based on the available structural information.    The method we use to construct the feature representation of the input image is inspired by feature learning methods \cite{ranzato_unsupervised_2007} and modality synthesis algorithms \cite{hertzmann_image_2001,wang_deringing_2006,rueda_single-image_2013,rousseau_non-local_2010}.  Our novel decomposition of ASL-CBF images enables them to be included in population studies either as measures of purely functional variability or as representations of the relationship between CBF and the underlying GM substrate.  A graphical abstract of our method is shown in Figure \ref{fig:flowchart}.
+
+\subsection{Related Work}
+Much work has been done in predict
+
+\begin{figure}
+\centering
+\makebox[\textwidth][c]{\includegraphics[width = 13cm]{fig/ASL_PVE_Flowchart.pdf}}
+\caption{Graphical abstract of proposed method.  Patches are sampled from image in modality 1 (here, T1) and eigendecomposition is used to learn optimal features (``eigenpatches'') to describe patches.  Patches corresponding to each point in the image are then projected onto the ``eigenpatches'' to create a representation of the input image in feature space.  We then use linear regression to predict the second image (here, perfusion image) from the feature-based description of the first image.  This enables us to decompose the perfusion image into a component that is predicted from the structural image and the unique contribution of the perfusion image.}
+\label{fig:flowchart}
+\end{figure}
+We make the following contributions: 1) We provide a novel method for learning the features of a given image modality, using minimal prior information, that best predict the output of another imaging modality; 2) We show that these features are significantly better at predicting perfusion than segmentation probability maps; 3) We demonstrate that this method produces consistent perfusion maps across session scans within a single subject; 4) We show that this method finds meaningful differences between traumatic brain injury patients and controls that would not have been found using standard partial volume correction.
+
+\section{Methods}
+\subsection{Feature Learning}
+Denote a segmentation probability for white matter (WM) or gray matter (GM) as $P_{WM,GM}$, the raw input functional image as $\mathrm{Image}_{\mathrm{uncorrected}}$ and its partial volume corrected counterpart as $\mathrm{Image}_{\mathrm{corrected}}$.  
+Standard ASL partial volume correction \cite{johnson_pattern_2005} takes the following form:
+\begin{equation} 
+\text{Image}_{\text{corrected}} = \frac{\text{Image}_{\text{uncorrected}}}{P_{GM}+0.4 \cdot P_{WM}}.
+\label{eqn:pve_correction} 
+\end{equation}
+The specific formulation above derives from a more general assumption of a linear relationship between the voxelwise structure and function: 
+\begin{equation}
+\text{Image}_{\text{GMcorrected}}   P_{GM} + \text{Image}_{\text{WMcorrected}}   P_{WM}  = \text{Image}_{\text{uncorrected}}	
+\end{equation}
+where assuming that $\mathrm{Image}_{\mathrm{WMcorrected}}=0.4\mathrm{Image}
+_{\mathrm{GMcorrected}}$ leads to Equation \ref{eqn:pve_correction}.  The number of samples required to reliably estimate the parameters for this regression model is typically gained by sampling over the brain as in \cite{johnson_pattern_2005,asllani_regression_2008}.  While \cite{johnson_pattern_2005} samples over whole lobes, \cite{asllani_regression_2008} samples within a local kernel centered on the voxel of interest.  Both approaches directly analyze the gray matter and white matter probability images as they relate to function.  
+
+As explained in the Introduction, we seek to decompose the observed perfusion image into a component that can be determined from only structural information and a component that is uniquely provided by the functional modality.  To formulate our decomposition of the observed CBF image, we reframe this equation as a prediction problem: 
+\begin{equation}
+\text{CBF Signal} \sim \mathrm{Structure} + \mathrm{Function}.
+\label{eqn:cbfFromStructure}
+\end{equation}
+We seek to extract as much information as possible from the structural image that can be used to predict the functional image.  Put in terms of the standard linear regression scheme, if $Y$ is the observed perfusion image, $X$ is the structural data, $\beta$ is the coefficient vector, and $\epsilon$ is the functional data that is unexplained by the structural data, we find 
+\begin{equation} 
+Y = X \beta + \epsilon 
+\label{eqn:linear_regression}
+\end{equation}
+
+From an optimization perspective, we seek to minimize the following objective function: 
+\begin{equation}
+\underset{k, \beta}{\operatorname{arg\,min}} \; \| Q - Q E_k(P)E_k(P)^{\mathrm{T}} \|_2^2 + \lambda \| \mathrm{CBF} - Q E_k(P) \beta\|_2^2,
+\end{equation}
+where $P$ is a matrix of sample patches from the original image, $Q$ is a matrix consisting of a patch representation of each voxel in the original image, $E_k(P)$ is the eigendecomposition of $P$ that retains $k$ vectors, CBF is the input CBF data, and $\beta$ is the regression coefficient for predicting the CBF measurement from the structural information.  We optimize this equation by an alternating approach, first minimizing the reconstruction error of the anatomical image samples and then the reconstruction error of the functional image. Note that, to reduce the likelihood of over-fitting, we train the model on data that is complementary to the voxel set that we are correcting.
+
+To produce the $X$ predictor matrix, we use a patch-based description of the structural information.   We generate a patch-based description of the input image by sampling 1000 random patches of a given radius from the image.  We choose the patch radius such that the region size within the anatomical image contains the scale at which anatomical information may influence the observed functional voxel (e.g.\ a 10mm patch).  We place each patch in a common reference frame and perform eigendecomposition of the patch matrix to generate ``eigenpatches.''  The patch representation of every voxel in the image is then projected onto these eigenpatches to form a lower-dimensional representation of the patches that captures $>$95\% of the image information, as is common in this framework \cite{ranzato_unsupervised_2007}.  This sub-space captures salient features of the input anatomical patterns and is therefore more generalizable than using the gray-scale value at each patch directly. Our output is a set of coefficient images that represent the response of each voxel in the image to each eigenpatch.  A graphical outline of the method is in Figure \ref{fig:flowchart}, and a more formal description of the algorithm is in Algorithm \ref{alg:eigenpatch}.
+
+\begin{algorithm}
+\begin{algorithmic}
+\State \textbf{Input}: patch neighborhood operator $N_i$, number of patches to sample $m$, input image $I$, target variance explained $v$. \Comment{$N_i$ defines the points in the neighborhood of voxel $i$.}
+\State $n \leftarrow$ number of pixels in $I$.
+\State $l \leftarrow$ number of pixels in $N_i$. 
+\State Initialize $Q$ $\leftarrow$ [ ] \Comment{$n \times l$ patch matrix for every pixel in image.}
+\State Initialize $P$ $\leftarrow$ [ ] \Comment{$m \times l$ sample patch matrix.}
+\For{$i=0,\ldots,m-1$}
+\State $r \leftarrow$ random voxel in $I$.
+\State $t \leftarrow$ vector representation of $\left\lbrace s : s \in N_r \right\rbrace$ 
+\State $P \leftarrow [P \; \; t]$.
+\EndFor
+\State Compute eigenvectors $V$ of $P$. 
+\State Retain eigenvectors necessary to achieve $v$ variance explained.
+\For{$i=0, \ldots, n-1$}
+\State $t \leftarrow$ vector representation of $\left\lbrace s:s \in N_i \right\rbrace$
+\State $Q \leftarrow [Q \; \; t]$.
+\EndFor
+\State $F \leftarrow Q V$  \Comment{Project patches of input image onto eigenvectors.}
+\State \textbf{Output}: $F$.  \Comment{Coefficient images describing response of each image voxel to each eigenpatch.}
+\end{algorithmic}
+\caption{Algorithm for generating feature-based descriptor of image.}
+\label{alg:eigenpatch}
+\end{algorithm}
+
+Once we have the set of coefficient images, we concatenate them in to a matrix that is $n \times p$, where there are $n$ voxels in the image and $p$ coefficient images.  This matrix is then concatenated with the standard gray and white matter probability images, as we have found that the complementary information in the probability images significantly improves our prediction of perfusion.  This concatenated matrix becomes our structural predictor matrix in Equation \ref{eqn:cbfFromStructure}, which is the same as the $X$ matrix in Equation \ref{eqn:linear_regression}.  The $Y$ vector is the vector of raw perfusion images.  The residual of this linear regression model then becomes the component of the function that is not predicted by the structural image.  
+
+\subsection{Clinical Data}
+\textbf{Test-Retest Data:} The cohort consists of 12 healthy young adult participants (mean age 25.5$\pm$4.5, 7 female). For each subject, data was acquired at two time points in the same day. For each time point, high resolution T1-weighted anatomic images were obtained using 3D MPRAGE imaging sequence and the following acquisition parameters: TR = 1620 ms, TI = 950 ms, TE = 3 ms, flip angle = 15 degrees, 160 contiguous slices of 1.0 mm thickness, FOV = 192 $\times$ 256 mm$^2$, matrix = 192$\times$256, 1NEX with a scan time of 6 min. The resulting voxel size was 1 mm. Additionally, pulsed ASL (PASL) images were aquired with 80 alternating tag/control images and 2 M0 images all with 14 contiguous slice of 7.5mm thickness, FOV = 220 $\times$ 220mm$^2$, matrix = 64 $\times$ 64. Additional acquisition parameters: TI1 = 700ms, TI2 = 1700ms.
+
+\textbf{Traumatic Brain Injury Data:}
+Our cohort consists of 41 participants (mean age 30.4$\pm$10), including 22 patients with TBI (9 females), and 18 controls (9 females).
+No significant difference existed between age or education in the patient or control groups. The same image acquisition as decribed above was used for these subjects.
+
+\textbf{Image Preprocessing:} The set of T1 images from each subject's first time points was used to construct a template using ANTs \cite{avants_reproducible_2011}. Additionally, a three-tissue segmentation of the template \cite{avants_open_2011} allowed the labels to be partially masked so only cortex and deep gray structures were labeled. For each time point, the T1 image was registered to the template image. Additionally, registration was used to find an intra-subject mapping between the T1 image and the M0 image that is acquired as a reference for the PASL acquisition. These transforms were composed to map the cortical labels into ASL native space for each time point. For PASL images, the M0 image served as a reference for motion-correction of all time-point volumes. Sinc interpolation was used to estimate the full time-series for both the control and tag data. The difference between control and tag was used along with relevant acquisition parameters to calculate the ASL-CBF over time, while the average of the two signals was calculated for ASL-BOLD.
+
+\vspace{-0.3cm}
+\section{Results}
+\vspace{-0.3cm}
+In comparison to using only segmentation probability maps, we: 1) assess the ability of our method to predict function from structure quantitatively in terms of variance explained; 2) determine the repeatability of our method in predicting perfusion data from test-retest data of the same subject; and 3) identify how this approach impacts findings in a population study. 
+
+
+\textbf{Variance explained:} The structural features we compute are significantly better at predicting perfusion data than gray and white matter probability masks.  Figure \ref{fig:structureVsMaps} compares predicted vs. actual perfusion values using the proposed method and segmentation probability maps for a sample image.  
+
+
+
+\textbf{Reproducibility:} Because our method uses more predictors than segmentation-based PVE correction does, we evaluated the reproducibility of our method on test-retest data (see Methods). We used the structural information to predict both within-session and across-session perfusion.  To obtain a bound on the highest achievable correlation coefficient  between predicted and actual CBF measurements, we calculated inter-session ASL reproducibility on a voxelwise basis (in R syntax: $\text{CBF at timepoint 2} \sim \text{CBF at timepoint 1}$).  We found that ASL has a test-retest reproducibility of approximately 42\%.  We found that overall, our structural predictors were significantly ($p < 1e-6$) better at predicting perfusion data than using segmentation maps, and neither our structural predictors nor segmentation probability maps displayed significant performance degradation on predicting inter-session ASL data (Figure \ref{fig:reproducibility}). 
+
+\textbf{Population study:} To evaluate the performance of our method in a challenging application of neuroscientific interest, we used our method to process data from a cohort of traumatic brain injury (TBI) subjects as described in the Methods section.  We compared a voxelwise VBM-type population study on the ``purely functional'' image, or the component of the CBF image that is not predicted by the structural image, and the raw gray matter CBF image.  This study was performed only on gray matter structures.  We found that our approach was more sensitive to differences between controls and subjects, and found differences in purely functional images with an FDR-corrected p-value of 0.055, whereas the raw CBF images did not find any differences with a corrected p-value of less than 0.35.  
+
+\vspace{-0.3cm}
+\section{Conclusion}
+\vspace{-0.2cm}
+The method presented here shows promise in decomposing CBF images into structural and purely functional components.  The algorithm proposed explains significantly more of the variance in CBF images than the segmentation probability maps commonly used for performing partial volume correction and is therefore more suited to decompositions of the type explored here.  In addition, our method has shown promise in detecting differences between TBI and control subjects in a manner that improves the power of standard CBF analyses.  
+\vspace{-0.3cm}
+\bibliographystyle{elsarticle-num}
+\bibliography{kandel_lib}
+\end{document}
