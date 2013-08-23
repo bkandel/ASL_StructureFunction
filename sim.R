@@ -6,18 +6,19 @@ library(ANTsR)
 set.seed(1213) # for reproducibility
 
 ### Set up parameters ####
-nloc <- 10000 # number of locations for added activity
-noise <- c(150, 1700)
+nloc <- 1000 # number of locations for added activity
+noise <- c(150, 1500)
 area <- 37 # brodmann area to take
 randsrc.amp <- 15
 blob.amp <- 15
 speckle.amp <- 15
 specklegm.amp <- 20
-smooth.sigma <- 5
+smooth.sigma <- 2
+
 
 recompute <- F
 aslres <- F
-
+for(specklegm.amp in c(40)){
 if(recompute){
   t1 <- antsImageRead(getANTsRData('mni'), 3)
   lab <- antsImageRead(getANTsRData('mnib'), 3)
@@ -82,9 +83,12 @@ func[mymask>0] <- csf[mymask>0] * 5 +
   rnorm(length(mymask[mymask>0]), sd=10) * speckle.amp
 func[gm.mask>0] <- func[gm.mask>0] + rnorm(length(gm.mask[gm.mask>0]), sd=10) * specklegm.amp
 SmoothImage(3, func, smooth.sigma, func)
-antsImageWrite(func, 'data/simulation/func.nii.gz')
+antsImageWrite(func, paste('data/simulation/func', specklegm.amp, '.nii.gz', sep=''))
 
 if(aslres){
   ResampleImageBySpacing(list(3, func, func, 1, 1, 1))
   antsImageWrite(func, 'data/simulation/func_upsample.nii.gz')
+}
+
+
 }
