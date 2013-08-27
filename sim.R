@@ -10,9 +10,9 @@ nloc <- 200 # number of locations for added activity
 nblob <- 300 # number of locations for structure-based activity
 noise <- c(150, 300)
 area <- 37 # brodmann area to take
-randsrc.amp <- 35
-blob.amp <- 35
-speckle.amp <- 10
+randsrc.amp <- 100
+blob.amp <- 45
+speckle.amp <- 5
 specklegm.amp <- 5
 smooth.sigma <- 1.5
 
@@ -84,29 +84,26 @@ if(regenerate){
   system(paste("SurfaceBasedSmoothing data/simulation/blob.nii.gz 1", 
                "data/simulation/gm_mask.nii.gz data/simulation/blob_smooth.nii.gz 5"))
 }
-system(paste("SurfaceCurvature data/simulation/mni.nii.gz data/simulation/curve.nii.gz", 
-             "1.5 0"))
-curve <- antsImageRead('data/simulation/curve.nii.gz', 3)
-cerebrum <- antsImageRead('data/simulation/cerebrum.nii.gz', 3)
-curve <- maskImage(curve, cerebrum)
-curve[cerebrum>0] <- curve[cerebrum>0] - 128
-curve[curve<0] <- 0
-ImageMath(3, curve, 'm', curve, 10)
-antsImageWrite(curve, 'data/simulation/curve.nii.gz')
+# system(paste("SurfaceCurvature data/simulation/mni.nii.gz data/simulation/curve.nii.gz", 
+#              "1.5 0"))
+# curve <- antsImageRead('data/simulation/curve.nii.gz', 3)
+# cerebrum <- antsImageRead('data/simulation/cerebrum.nii.gz', 3)
+# curve <- maskImage(curve, cerebrum)
+# curve[cerebrum>0] <- curve[cerebrum>0] - 128
+# curve[curve<0] <- 0
+# ImageMath(3, curve, 'm', curve, 10)
+# antsImageWrite(curve, 'data/simulation/curve.nii.gz')
 
-mydist <- antsImageRead('data/simulation/tmp.nii.gz', 3)
-mydist <- maskImage(mydist, cortex)
 myblob <- antsImageRead('data/simulation/blob_smooth.nii.gz', 3)
-mynoise.img <- antsImageRead('data/simulation/noise_smooth.nii.gz', 3)
-src.img <- antsImageRead('data/simulation/curve.nii.gz', 3)
+src.img <- antsImageRead('data/simulation/noise_smooth.nii.gz', 3)
 func <- antsImageClone(t1)
 func[func != 0] <- 0
 
 func[mymask>0] <- csf[mymask>0] * 5 +
   gm[mymask>0] * 100 +  wm[mymask>0] * 0.4 * 100 + 
-  mynoise.img[mymask>0] * randsrc.amp * 5+ 
+  src.img[mymask>0] * randsrc.amp + 
   rnorm(length(mymask[mymask>0]), sd=10) * speckle.amp + 
-  src.img[mymask>0] * blob.amp 
+  myblob[mymask>0] * blob.amp 
 func[gm.mask>0] <- func[gm.mask>0] + 
   rnorm(length(gm.mask[gm.mask>0]), sd=10) * specklegm.amp 
 SmoothImage(3, func, smooth.sigma, func)
