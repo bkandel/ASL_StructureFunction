@@ -15,7 +15,7 @@ blob.amp <- 45
 speckle.amp <- 5
 specklegm.amp <- 5
 smooth.sigma <- 1.5
-
+nsubj <- 20
 
 reseg <- F # recompute segmentation?
 regenerate <- F # regenerate sources and smoothing
@@ -61,13 +61,6 @@ gm.mask[gm.mask>0] <- 1
 antsImageWrite(gm.mask, 'data/simulation/gm_mask.nii.gz')
 
 if(regenerate){
-  src.img <- new('antsImage', 'float', 3) 
-  ImageMath(3, src.img, 'BlobDetector', maskImage(t1, gm.mask), 100)
-  maskImage(src.img, gm.mask)
-  ImageMath(3, src.img, 'MD', src.img, 3)
-  antsImageWrite(src.img, 'data/simulation/sources.nii.gz')
-  system(paste("SurfaceBasedSmoothing data/simulation/sources.nii.gz 1", 
-               "data/simulation/gm_mask.nii.gz data/simulation/sources.nii.gz 5"))
   
   mynoise <- rep(0, length(gm.mask[gm.mask>0]))
   locs <- round(runif(nloc, min=0, max=length(mynoise)))
@@ -84,34 +77,27 @@ if(regenerate){
   system(paste("SurfaceBasedSmoothing data/simulation/blob.nii.gz 1", 
                "data/simulation/gm_mask.nii.gz data/simulation/blob_smooth.nii.gz 5"))
 }
-# system(paste("SurfaceCurvature data/simulation/mni.nii.gz data/simulation/curve.nii.gz", 
-#              "1.5 0"))
-# curve <- antsImageRead('data/simulation/curve.nii.gz', 3)
-# cerebrum <- antsImageRead('data/simulation/cerebrum.nii.gz', 3)
-# curve <- maskImage(curve, cerebrum)
-# curve[cerebrum>0] <- curve[cerebrum>0] - 128
-# curve[curve<0] <- 0
-# ImageMath(3, curve, 'm', curve, 10)
-# antsImageWrite(curve, 'data/simulation/curve.nii.gz')
 
 myblob <- antsImageRead('data/simulation/blob_smooth.nii.gz', 3)
 src.img <- antsImageRead('data/simulation/noise_smooth.nii.gz', 3)
-func <- antsImageClone(t1)
-func[func != 0] <- 0
 
-func[mymask>0] <- csf[mymask>0] * 5 +
-  gm[mymask>0] * 100 +  wm[mymask>0] * 0.4 * 100 + 
-  src.img[mymask>0] * randsrc.amp + 
-  rnorm(length(mymask[mymask>0]), sd=10) * speckle.amp + 
-  myblob[mymask>0] * blob.amp 
-func[gm.mask>0] <- func[gm.mask>0] + 
-  rnorm(length(gm.mask[gm.mask>0]), sd=10) * specklegm.amp 
-SmoothImage(3, func, smooth.sigma, func)
-antsImageWrite(func, 'data/simulation/func.nii.gz')
-
-if(aslres){
-  ResampleImageBySpacing(list(3, func, func, 1, 1, 1))
-  antsImageWrite(func, 'data/simulation/func_upsample.nii.gz')
+for(i in 1:nsubj){
+  func <- antsImageClone(t1)
+  func[func != 0] <- 0
+  func[mymask>0] <- csf[mymask>0] * 5 +
+    gm[mymask>0] * 100 +  wm[mymask>0] * 0.4 * 100 + 
+    src.img[mymask>0] * randsrc.amp * i %% 2 + 
+    rnorm(length(mymask[mymask>0]), sd=10) * speckle.amp + 
+    myblob[mymask>0] * blob.amp * i %% 2
+  func[gm.mask>0] <- func[gm.mask>0] + 
+    rnorm(length(gm.mask[gm.mask>0]), sd=10) * specklegm.amp 
+  SmoothImage(3, func, smooth.sigma, func)
+  antsImageWrite(func, paste('data/simulation/func', 
+                             sprintf('%.2d', i), '.nii.gz', sep=''))
+  if(aslres){
+    ResampleImageBySpacing(list(3, func, func, 1, 1, 1))
+    antsImageWrite(func, 'data/simulation/func_upsample.nii.gz')
+  }
 }
 
 toc <- Sys.time()
