@@ -27,6 +27,9 @@
 \newcommand{\GM}{\mathrm{GM}}
 \newcommand{\WM}{\mathrm{WM}}
 \newcommand{\CSF}{\mathrm{CSF}}
+\newcommand{\ra}[1]{\renewcommand{\arraystretch}{#1}}
+
+
 \def\naive{na\"{\i}ve }
 
 
@@ -48,7 +51,7 @@
 
 
 \begin{abstract}
-We propose a flexible and widely applicable method for adjusting arterial spin labeling (ASL) perfusion images based on the underlying anatomy.  Using learned patch-based, rotation invariant descriptors of the anatomical image, we learn a global relation between brain anatomy and the corresponding perfusion image.  This relation allows us to produce an image of perfusion that would be predicted given only the underlying anatomy and a second image that retains perfusion information that cannot be predicted by anatomical features.  This decomposition of the perfusion image allows for an adjustment of perfusion imaging for the underlying anatomy that relies on minimal prior knowledge.  Our learned structural images account for much more variance explained than can be predicted using only gray and white matter probability maps, which are the input to standard partial volume correction techniques.  Studies in test-retest data show that both the anatomically predicted and residual perfusion signal are highly replicable for a given subject.  In addition, studies in a pediatric population demonstrate that both the anatomically predicted and residual perfusion images are more tightly linked to age than raw CBF images, highlighting the importance of structural correction when analyzing CBF.  
+We propose a flexible and widely applicable method for adjusting arterial spin labeling (ASL) perfusion images based on the underlying anatomy.  Using learned patch-based, rotation invariant descriptors of the anatomical image, we learn a global relation between brain anatomy and the corresponding perfusion image.  This relation allows us to produce an image of perfusion that would be predicted given only the underlying anatomy and a second image that retains perfusion information that cannot be predicted by anatomical features.  This decomposition of the perfusion image allows for an adjustment of perfusion imaging for the underlying anatomy that relies on minimal prior knowledge.  Our learned structural images account for much more variance explained than can be predicted using only gray and white matter probability maps, which are the input to standard partial volume correction techniques.  Studies in test-retest data show that both the anatomically predicted and residual perfusion signal are highly replicable for a given subject.  In addition, studies in a pediatric population demonstrate that the anatomically predicted and residual perfusion images are tightly linked to age, highlighting the biological validity of the obtained values.  
 \end{abstract}
 
 \end{frontmatter}
@@ -59,7 +62,7 @@ We propose a flexible and widely applicable method for adjusting arterial spin l
 <<setup, echo=FALSE, cache=FALSE>>=
 ## numbers >= 10^5 will be denoted in scientific notation,
 ## and rounded to 2 digits
-options(digits = 2)
+options(digits = 2, scipen=-1)
 opts_chunk$set(echo=FALSE)
 booleval <- FALSE
 @
@@ -262,30 +265,35 @@ plotANTsImage(asl.struct, outname='fig/FunctionFromStructureOrientationVariant.p
 
 \begin{figure}
 \centering
-  \begin{subfigure}{4cm}
+  \begin{subfigure}[t]{4cm}
     \includegraphics[width=4cm]{fig/SyntheticStructural.png}
     \caption{Synthetic anatomical data.}
   \end{subfigure}
-  \begin{subfigure}{4cm}
+  \hspace{1em}
+  \begin{subfigure}[t]{4cm}
     \includegraphics[width=4cm]{fig/SyntheticFunctional.png}
     \caption{Synthetic perfusion data.}
     \label{fig:synthetic_functional}
   \end{subfigure}
-  \begin{subfigure}{4cm}
+  \hspace{1em}
+  \begin{subfigure}[t]{4cm}
     \includegraphics[width=4cm]{fig/FunctionFromStructureOrientationVariant.png}
     \caption{Perfusion signal that can be reproduced from anatomy, using non-orientation invariant features.}
     \label{fig:function_structure_orientation_variant}
   \end{subfigure}
-  \begin{subfigure}{4cm}
+  \hspace{1em}
+  \begin{subfigure}[t]{4cm}
     \includegraphics[width=4cm]{fig/OnlyFunctionalOrientationVariant.png}
     \caption{Residual perfusion signal, analyzed using non-orientation invariant features. }
     \label{fig:only_function_orientation_variant}
   \end{subfigure}
+  \hspace{1em}
   \begin{subfigure}[t]{4cm}
     \includegraphics[width=4cm]{fig/FunctionFromStructureOrientationInvariant.png}
     \caption{Perfusion signal that can be reproduced from anatomy, using orientation invariant features.}
     \label{fig:function_structure_orientation_invariant}
   \end{subfigure}
+  \hspace{1em}
   \begin{subfigure}[t]{4cm}
     \includegraphics[width=4cm]{fig/OnlyFunctionOrientationInvariant.png}
     \caption{Residual perfusion signal, analyzed using orientation invariant features.}
@@ -296,7 +304,7 @@ plotANTsImage(asl.struct, outname='fig/FunctionFromStructureOrientationVariant.p
 \label{fig:synthetic_decomposition}
 \end{figure}
 
-We generated synthetic data to demonstrate how the proposed method decomposes simulated functional images into its purely functional component and to the component that can be inferred from structure. Figure \ref{fig:synthetic_decomposition} shows the ``anatomical'' and ``perfusion'' components of the data.  Some aspects of the perfusion data, such as the increased activity at the intersections of the lines, can be inferred from the structure of the image (when trained on an appropriate reference functional image).  Other aspects of the functional data, such as the increased activity on the upper right-hand line, cannot be inferred from the structural data: Given a patch-based descriptor of a given voxel in the structural image, it is impossible to tell whether the corresponding perfusion voxel has a high or low value.  In addition, certain functional values can only be inferred from the orientation of the structure.  For example, the horizontal central line has a higher functional value than the vertical lines.  Given only an orientation-invariant feature description of the central line, it is impossible to tell what the functional value is. Figure \ref{fig:synthetic_decomposition} shows the result of the decomposition.  As we would expect, both decompositions do not predict the increased activity in the upper right-hand line from the structural data, but do reconstruct the increased activity at the intersections of the lines.  Only the non-rotation invariant decomposition reconstructs the increased activity on the horizontal line.  On the other hand, constructing orientation-invariant features enables sharing more data across regions, leading to a lower-variance reconstruction (Figure \ref{fig:function_structure_orientation_invariant}).  
+We generated synthetic data to demonstrate how the proposed method decomposes simulated functional images into its purely functional component and to the component that can be inferred from structure. Figure \ref{fig:synthetic_decomposition} shows the ``anatomical'' and ``perfusion'' components of the data.  Some aspects of the perfusion data, such as the increased activity at the intersections of the lines, can be inferred from the structure of the image (when trained on an appropriate reference functional image).  Other aspects of the functional data, such as the increased activity on the upper right-hand line, cannot be inferred from the structural data: Given a patch-based descriptor of a given voxel in the structural image, it is impossible to tell whether the corresponding perfusion voxel has a high or low value.  In addition, certain functional values can only be inferred from the orientation of the structure.  For example, the horizontal central line has a higher functional value than the vertical lines.  Given only an orientation-invariant feature description of the central line, it is impossible to tell what the functional value is. Figure \ref{fig:synthetic_decomposition} shows the result of the decomposition.  As we would expect, both decompositions do not predict the increased activity in the upper right-hand line from the structural data, but do reconstruct the increased activity at the intersections of the lines.  Only the non-rotation invariant decomposition reconstructs the increased activity on the horizontal line.  On the other hand, constructing orientation-invariant features enables sharing more data across regions, leading to a lower-variance reconstruction (Figure \ref{fig:function_structure_orientation_invariant}).  We consider the structure of neuroimaging data to be ``rotation-invariant'' in the sense that a gyrus pointing superiorly is equivalent to a gyrus pointing inferiorly.  This rotation invariance enables information to be shared across hemispheres of the brain and reduces the chances of overfitting to a specific region. 
 
 \subsection{Simulated Population Study}
 <<plotBlobs, echo=FALSE, eval=FALSE>>=
@@ -382,23 +390,26 @@ The mean CBF as well as CBF that can be predicted from structure as well as pure
 
 \begin{figure}
 \centering
-\begin{subfigure}{5cm}
-  \includegraphics[width=5cm]{figure/kcbf.png}
+\begin{subfigure}[t]{5cm}
+  \includegraphics[height=6cm]{figure/kcbf.png}
   \caption{Raw mean CBF image.}
   \label{fig:sample_kcbf}
 \end{subfigure}
-\begin{subfigure}{5cm}
-  \includegraphics[width=5cm]{figure/structCBF.png}
+\hspace{1em}
+\begin{subfigure}[t]{5cm}
+  \includegraphics[height=6cm]{figure/structCBF.png}
   \caption{CBF image that can be reconstructed from structure.}
   \label{fig:sample_structCBF}
 \end{subfigure}
-\begin{subfigure}{5cm}
-  \includegraphics[width=5cm]{figure/funcCBF.png}
+\hspace{1em}
+\begin{subfigure}[t]{5cm}
+  \includegraphics[height=6cm]{figure/funcCBF.png}
   \caption{``Functional'' CBF image that cannot be reconstructed from structure.}
   \label{fig:sample_funcCBF}
 \end{subfigure}
-\begin{subfigure}{5cm}
-  \includegraphics[width=5cm]{figure/probCBF.png}
+\hspace{1em}
+\begin{subfigure}[t]{5cm}
+  \includegraphics[height=6cm]{figure/probCBF.png}
   \caption{CBF image reconstructed using only probability maps.}
   \label{fig:sample_probCBF}
 \end{subfigure}
@@ -452,14 +463,15 @@ The structural features we compute are significantly better at predicting perfus
 A key measure of the reliability of a clinical measurement is its test-retest reproducibility within a given subject.  We evaluated the test-retest reproducibility of our anatomically-predicted and residual perfusion images and compared them to the reproducibility of the raw CBF signal and reproducibility of perfusion as predicted by tissue probability maps and cortical thickness.  We evaluated reproducibility by voxel-wise correlation between the images at two time points for a given subject.  We found that the test-retest voxel-wise correlation of CBF was roughly 0.65, and both the anatomically predicted and residual CBF were within 0.1 of that value.  Although the high reproducibility of the structurally predicted CBF was expected, the high reproducibility of the residual CBF indicates that it is not simply random noise and varies in a consistent way across subjects. 
 
 \subsection{Pediatric Population Study}
-<<peds_study,echo=FALSE,results='hide',eval=TRUE>>=
+<<peds_study,echo=FALSE,results='hide',eval=TRUE, warnings=FALSE>>=
 suppressMessages(require(ggplot2))
 suppressPackageStartupMessages(require(reshape2))
 suppressMessages(require(ANTsR))
 data(aal)
-replot <- TRUE
-demog <- read.csv('analysis/DemogWithASLVals.csv')
-myrois <- c(1, 3, 7, 13, 37, 45, 55, 49, 63, 67,  81, 85, 87) # left precuneus
+replot <- FALSE
+demog <- read.csv('analysis/DemogWithASLVals_lores.csv')
+#myrois <- c(1, 3, 7, 13, 37, 45, 55, 49, 63, 67,  81, 85) # left precuneus
+myrois <- c(37, 38, 49, 50, 67, 68) # minimal set--hippocampus, precuneus, occipital, left and right
 badsubj <- c(127,66) # to be deleted
 
 peds.stat <- NULL
@@ -477,13 +489,13 @@ for (roi in myrois) {
   colnames(mydat.age.m) <- c('Age', 'Measurement', 'Value')
   colnames(mydat.thick.m) <- c('Thickness', 'Measurement', 'Value')
   if(replot){
-    ggplot(mydat.age.m, aes(Age, Value, colour=Measurement)) + geom_point() +
-      geom_smooth(method="lm") + ggtitle(paste('Functional, Structural, PVC, and Raw CBF vs. Age for', aal$label_name[roi])) +
-      xlab('Age (years)') + ylab('CBF (ml/100g/min)') + theme(text=element_text(size=20))
+    ggplot(mydat.age.m, aes(Age, Value, colour=Measurement)) + geom_point(na.rm=T) +
+      geom_smooth(method="lm", na.rm=T) + ggtitle(paste('Functional, Structural, PVC, and Raw CBF vs. Age for', aal$label_name[roi])) +
+      xlab('Age (years)') + ylab('CBF (ml/100g/min)') + theme(text=element_text(size=20)) + ylim(-50, 200)
     ggsave(paste('figure/FunctionalStructuralDecomposition', aal$label_name[roi], '.pdf', sep=''),
       width=14, height=7)
-    ggplot(mydat.thick.m, aes(Thickness, Value, colour=Measurement)) + geom_point() + 
-      geom_smooth(method='lm') + xlab('Thickness (mm)') +
+    ggplot(mydat.thick.m, aes(Thickness, Value, colour=Measurement)) + geom_point(na.rm=T) + 
+      geom_smooth(method='lm', na.rm=T) + xlab('Thickness (mm)') +
       ylab('CBF (ml/100g/min') + 
       ggtitle(paste('Raw, Structurally Predicted, and Residual CBF vs. Cortical Thickness for', aal$label_name[roi]))
     ggsave(paste('figure/CBFVsThickness', aal$label_name[roi], '.pdf', sep=''), 
@@ -509,23 +521,69 @@ for (roi in myrois) {
 @
 \begin{figure}
 \centering
-\begin{subfigure}{10cm}
-  \includegraphics[width=10cm]{figure/FunctionalStructuralDecompositionHippocampus_L.pdf}
-  \caption{Structural and functional CBF for left temporal pole.}
+\begin{subfigure}{11cm}
+  \includegraphics[width=11cm]{figure/FunctionalStructuralDecompositionHippocampus_L.pdf}
+  \caption{Structural and functional CBF for left hippocampus.}
 \end{subfigure}
-\begin{subfigure}{10cm}
-  \includegraphics[width=10cm]{figure/FunctionalStructuralDecompositionPrecuneus_L.pdf}
+\begin{subfigure}{11cm}
+  \includegraphics[width=11cm]{figure/FunctionalStructuralDecompositionPrecuneus_L.pdf}
   \caption{Structural and functional CBF for left precuneus.}
 \end{subfigure}
-\begin{subfigure}{10cm}
-  \includegraphics[width=10cm]{figure/FunctionalStructuralDecompositionTemporal_Mid_L.pdf}
-  \caption{Structural and functional CBF for left lateral temporal lobe.}
+\begin{subfigure}{11cm}
+  \includegraphics[width=11cm]{figure/FunctionalStructuralDecompositionOccipital_Sup_L.pdf}
+  \caption{Structural and functional CBF for left occipital lobe.}
 \end{subfigure}
 \caption{Raw, anatomically predicted, and residual CBF as a function of age.  The raw CBF signal contains a mixture of the structural and functional CBF signals,  which do not necessarily trend in the same direction as raw CBF.}
 \label{fig:population}
 \end{figure}
 
-To demonstrate the utility and plausibility of the anatomically predicted and residual CBF in a population study of interest, we examined the dependence of the two signals as a function of age in a large pediatric dataset.  We found that the anatomically predicted and residual components of the raw CBF signal each had a lower variance than the original raw CBF image in most areas of the brain, and in some areas of the brain, such as the temporal pole, had opposite trends.  The trends were generally symmetric across the hemispheres.  For the left temporal pole, slope of the raw CBF vs.\ age was \Sexpr{peds.stat['Hippocampus_L', 'RawEst']}$\pm$\Sexpr{peds.stat['Hippocampus_L', 'RawStE']}, \textit{p}-value \Sexpr{peds.stat['Hippocampus_L', 'RawPVal']}; the corresponding structural slope was \Sexpr{peds.stat['Hippocampus_L', 'StructEst']}$\pm$\Sexpr{peds.stat['Hippocampus_L', 'StructStE']}, \textit{p}-value \Sexpr{peds.stat['Hippocampus_L', 'StructPVal']} and the functional slope was \Sexpr{peds.stat['Temporal_Pole_Mid_L', 'FuncEst']}$\pm$\Sexpr{peds.stat['Hippocampus_L', 'FuncStE']}, \textit{p}-value \Sexpr{peds.stat['Hippocampus_L', 'FuncPVal']}.  The structural CBF trended downwards with age, whereas the functional CBF trended upwards. In the precuneus, both structural and functional CBF trended downwards, resulting in an anatomically predicted CBF slope that was less pronounced than the raw CBF, whereas in lateral temporal lobe, structural CBF trended downwards while functional CBF stayed roughly constant. 
+\begin{table}
+\centering 
+\makebox[\textwidth]{
+\begin{tabular}{lccccccccc}
+\toprule
+& \multicolumn{2}{c}{Raw CBF} & \phantom{a} & \multicolumn{2}{c}{Structural CBF} & \phantom{a} & \multicolumn{2}{c}{Residual CBF} \\
+\cmidrule{2-3} \cmidrule{5-6} \cmidrule{8-9}
+& Slope & \textit{p}-value & & Slope & \textit{p}-value & & Slope & \textit{p}-value \\
+\midrule  
+Left Hippocampus & \Sexpr{peds.stat['Hippocampus_L', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Hippocampus_L', 'RawAgeStE']} & \Sexpr{peds.stat['Hippocampus_L', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Hippocampus_L', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Hippocampus_L', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Hippocampus_L', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Hippocampus_L', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Hippocampus_L', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Hippocampus_L', 'FuncAgePVal']} \\
+Right Hippocampus & \Sexpr{peds.stat['Hippocampus_R', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Hippocampus_R', 'RawAgeStE']} & \Sexpr{peds.stat['Hippocampus_R', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Hippocampus_R', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Hippocampus_R', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Hippocampus_R', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Hippocampus_R', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Hippocampus_R', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Hippocampus_R', 'FuncAgePVal']} \\
+Left Precuneus & \Sexpr{peds.stat['Precuneus_L', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_L', 'RawAgeStE']} & \Sexpr{peds.stat['Precuneus_L', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Precuneus_L', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_L', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Precuneus_L', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Precuneus_L', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_L', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Precuneus_L', 'FuncAgePVal']} \\
+Right Precuneus & \Sexpr{peds.stat['Precuneus_R', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_R', 'RawAgeStE']} & \Sexpr{peds.stat['Precuneus_R', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Precuneus_R', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_R', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Precuneus_R', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Precuneus_R', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_R', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Precuneus_R', 'FuncAgePVal']} \\
+Left Occipital & \Sexpr{peds.stat['Occipital_Sup_L', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_L', 'RawAgeStE']} & \Sexpr{peds.stat['Occipital_Sup_L', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Occipital_Sup_L', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_L', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Occipital_Sup_L', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Occipital_Sup_L', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_L', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Occipital_Sup_L', 'FuncAgePVal']} \\
+Right Occipital & \Sexpr{peds.stat['Occipital_Sup_R', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_R', 'RawAgeStE']} & \Sexpr{peds.stat['Occipital_Sup_R', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Occipital_Sup_R', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_R', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Occipital_Sup_R', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Occipital_Sup_R', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_R', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Occipital_Sup_R', 'FuncAgePVal']} \\
+\bottomrule 
+\end{tabular}
+}
+\caption{Statistics from linear models plotted in Figure \ref{fig:population}.  Although the raw and structurally predicted CBF values showed strong trends with age, the trends for the residual CBF was more variable.  Strong trends were evident in the hippocampus and precuneus, but not in occipital cortex.  Slope is given in units of CBF (ml/100g/min) per year.}
+\label{tab:population_stats}
+\end{table}
+
+To demonstrate the utility and plausibility of the anatomically predicted and residual CBF in a population study of interest, we examined the dependence of the two signals as a function of age in a large pediatric dataset.  We found that in all regions, raw CBF decreased in a roughly linear fashion with age.  The structurally predicted CBF also decreased with age, but the residual CBF had a regionally varying trend.  In the hippocampus, the residual CBF increased with age; in precuneus, it decreased with age; and in the occipital cortex, it stayed roughly constant.  Plots for the left hemisphere are shown in Figure \ref{fig:population}; trends were roughly symmetric across hemispheres.  Statistical analysis of the dependency on age is given in Table \ref{tab:population_stats}. 
 
 \section{Discussion}
 We have presented here a method to separate the anatomically predicted from the residual components of perfusion images as measured by ASL MRI.  Our method to generate structural predictors gives much better prediction accuracy for predicting CBF than either probability maps or cortical thickness.  The test-rest reproducibility of both the structural CBF and the functional CBF is within 10\% of the test-retest reproducibility of ASL, implying that both the structural and functional CBF maps contain stable signals.  In addition, we found that both the anatomically predicted and residual CBF were closely related to age, further implying that both signals reveal true neurobiological processes and are not simply measurement noise. 
@@ -533,6 +591,9 @@ We have presented here a method to separate the anatomically predicted from the 
 
 \subsection{Interpretation of Structural and Functional CBF}
 The method proposed here takes mean CBF values and structural images as input, and produces as output a ``structural'' CBF image and a ``purely functional'' CBF image.  At first glance, the interpretation of these two outputs may be somewhat obscure, but we believe that when properly understood, each image has an intuitively clear interpretation that can be directly incorporated into clinical characterization of a subject.  By way of analogy, we imagine an experiment tracking subject performance on a test of verbal ability in a group of children.  A researcher may regress out ``nuisance variables,'' such as subject age and familial income, before examining the results.  At the group level, the effect of these nuisance variables may in fact be of interest, but looking at an individual's score without accounting for these nuisance variables would be misleading.  In our method, we consider the ``group effects'' to be structural effects shared across the brain, whereas the ``subject-level'' measurements are the perfusion values at a given voxel.  The group effects of underlying brain structure, similarly to age and familial income in our imagined verbal ability study, may be of independent interest, and we may be interested in looking at regional variations in perfusion as predicted by structural measures.  When looking at a given voxel, though, we may also be interested in the amount of perfusion that is not predicted by the underlying neural architecture, just as one may look at a verbal ability result for a given subject when corrected for age and family income.  For both the structural and functional CBF measurements, the units are in the same units of blood flow as the original mean CBF image.  Negative values for the functional CBF image correspond to areas with less-than-expected perfusion as compared to structurally homologous regions elsewhere in the brain. 
+
+\subsection{Results from Population Study}
+We examined how structurally predicted and residual CBF vary across age in a pediatric population.  We found that although the raw and structurally predicted CBF decreased across all regions, the trends for residual CBF were not constant.  In the precuneus, the residual CBF decreased with age, whereas in the hippocampus, the residual CBF increased with age.  Although it is premature to draw strong conclusions from this preliminary study, these results suggest that in younger children, the hippocampus is hypoperfused relative to a global model relating structure to CBF, whereas the precuneus is relatively hyperperfused.  In both regions, the trend for residual CBF was towards zero, perhaps indicating that global models more accurately describe the perfusion of older subjects.  On the other hand, there was not a significant trend for the occipital lobe, indicating that the ability of a global model to describe the anatomy-perfusion relationship in the occipital lobe does not significantly change over time.  The finding of more significant trends in the hippocampus and precuneus, both members of the default mode network, may indicate a degree of development of the default mode network over development.  However, a more complete study of the trends is necessary before making any conclusions.  
 
 \subsection{Comparison to Partial Volume Correction Techniques}
 Although the method proposed here falls into the general category of atrophy and structure correction techniques, it has a fundamentally different purpose from standard partial volume correction (PVC) techniques \cite{meltzer_correction_1990,muller-gartner_measurement_1992,thomas_importance_2011} which we believe more directly addresses the question of structure and atrophy correction in perfusion imaging.  PVC aims to recover what the scanner \textit{would have seen} had technical impediments, such as partial volume effects, not interfered with the imaging.  In contrast, we aim to recover both the effect of anatomy on the perfusion image and the perfusion that is independent of anatomy.  This technique has two major advantages over PVC-based approaches.  First, PVC-based approaches typically rely on strong \textit{a priori} knowledge or assumptions about scanner mechanics and tissue properties.  In particular, the assumption of standard ASL PVE techniques that white matter perfusion is 40\% of gray matter perfusion for all subjects is a particularly specious assumption, as even the original study that established that value showed significant variations within control populations \cite{roberts_quantitative_1994}.  In contrast, our method learns the relation between brain structure and perfusion implicitly from the data and is agnostic with respect to scanner properties and modality.  Second, our method approaches the problem of atrophy and structure correction more directly than PVC-based techniques and can yield more biologically meaningful results.  Instead of assuming that the relation between observed perfusion and structure is mediated solely by tissue membership and scanner properties, our approach can model more subtle effects of brain structure that elude standard PVC-based approaches. Similarly, as opposed to PVE-based approaches, which are designed to correct GM perfusion values, our approach can apply to any tissue type.   
