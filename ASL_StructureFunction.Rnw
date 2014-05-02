@@ -1,4 +1,4 @@
-\documentclass{elsarticle}
+\documentclass[review]{elsarticle}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
@@ -10,6 +10,7 @@
 \usepackage{pslatex}
 \usepackage{setspace}
 \usepackage{subcaption}
+\usepackage{verbatim}
 \usepackage[colorlinks=true,citecolor=blue]{hyperref}
 
 \DeclareMathSymbol{\Gamma}{\mathalpha}{operators}{0}
@@ -32,26 +33,24 @@
 
 \def\naive{na\"{\i}ve }
 
-
-
-
-
 \begin{document}
 \begin{frontmatter}
 \title{Decomposing cerebral blood flow MRI into functional and structural components:  A non-local approach based on prediction}
 \author[picsl,be]{Benjamin M. Kandel}
 \ead{bkandel@seas.upenn.edu}
+\author[ucla]{Danny JJ Wang}
 \author[neuro,rad]{John A. Detre}
 \author[picsl,rad]{James C. Gee}
 \author[picsl,rad]{Brian B. Avants}
 \address[picsl]{Penn Image Computing and Science Laboratory, University of Pennsylvania, Philadelphia, PA}
+\address[be]{Department of Bioengineering, University of Pennsylvania, Philadelphia, PA}
+\address[ucla]{Department of Neurology, University of California Los Angeles, Los Angeles, CA}
 \address[neuro]{Department of Neurology, Hospital of the University of Pennsylvania, Philadelphia, PA}
 \address[rad]{Department of Radiology, Hospital of the University of Pennsylvania, Philadelphia, PA}
-\address[be]{Department of Bioengineering, University of Pennsylvania, Philadelphia, PA}
 
 
 \begin{abstract}
-We propose a flexible and widely applicable method for adjusting arterial spin labeling (ASL) perfusion images based on the underlying anatomy.  Using learned patch-based, rotation invariant descriptors of the anatomical image, we learn a global relation between brain anatomy and the corresponding perfusion image.  This relation allows us to produce an image of perfusion that would be predicted given only the underlying anatomy and a second image that retains perfusion information that cannot be predicted by anatomical features.  This decomposition of the perfusion image allows for an adjustment of perfusion imaging for the underlying anatomy that relies on minimal prior knowledge.  Our learned structural images account for much more variance explained than can be predicted using only gray and white matter probability maps, which are the input to standard partial volume correction techniques.  Studies in test-retest data show that both the anatomically predicted and residual perfusion signal are highly replicable for a given subject.  In addition, studies in a pediatric population demonstrate that the anatomically predicted and residual perfusion images are tightly linked to age, highlighting the biological validity of the obtained values.  
+We present RIPMMARC (Rotation Invariant Patch-based Multi-Modality Analysis aRChitecture), a flexible and widely applicable method for learning the relationship between two imaging modalities.  We use RIPMMARC to improve interpretation of arterial spin labeling (ASL) perfusion images in the context of the underlying anatomy.  Using patch-based, rotation invariant descriptors derived from the anatomical image, we learn, via nonlocal samples taken over the brain structure, a predictive relationship between local neuroanatomical structure, represented in the patch basis, and the corresponding perfusion image.  This relation allows us to produce an image of perfusion that would be predicted given only the underlying anatomy and a second image that represents perfusion information that cannot be predicted by anatomical features.  This decomposition of the perfusion image allows for an adjustment of perfusion imaging for the underlying anatomy that relies on minimal prior knowledge.  Our learned structural features are significantly better at predicting brain perfusion than tissue probability maps, which are the input to standard partial volume correction techniques.  Studies in test-retest data show that both the anatomically predicted and residual perfusion signal are highly replicable for a given subject. In a pediatric population, both the raw perfusion and structurally predicted images are tightly linked to age throughout adolescence throughout the brain.  In many regions, the structurally predicted perfusion is more tightly coupled to age.  We attribute this improvement to a reduction in noise that is gained by projecting perfusion onto the structural basis.  Interestingly, the residual perfusion also shows a strong correlation with age in select regions including the hippocampi (\textit{p}-value $< 10^{ -6 }$), precuneus ($p < 10^{-5}$), and combined default mode network regions ($p < 10^{ - 8}$) that is independent of global anatomy-perfusion trends. This finding suggests that there is a regionally heterogeneous pattern of functional specialization that is distinct from that of cortical thickness development.
 \end{abstract}
 
 \end{frontmatter}
@@ -63,15 +62,28 @@ We propose a flexible and widely applicable method for adjusting arterial spin l
 ## numbers >= 10^5 will be denoted in scientific notation,
 ## and rounded to 2 digits
 options(digits = 2, scipen=-1)
-opts_chunk$set(echo=FALSE)
+opts_chunk$set(echo=FALSE, fig.keep='none', message=F, warning=F)
 booleval <- FALSE
 @
 
-Many modalities of medical imaging contain information that can be partially captured by other modalities.  For example, perfusion of the brain is partially determined by the structure of the brain, which is in turn captured by T1 or other structural imaging modalities \cite{villain_relationships_2008,chetelat_direct_2008}; and conversely, brain perfusion may contribute to cortical thickness patterns \cite{fierstra_steal_2010} and T1 imaging maps \cite{salgado-pineda_brain_2006,franklin_vbm_2013}.  To improve interpretability of perfusion images, it is common to correct the image for information contained in the structural image.  In particular, many perfusion image processing protocols correct the perfusion image for partial voluming effects.  In addition to partial volume and other technical challenges, though, perfusion in a given voxel may be at least partially determined by the underlying brain anatomy.  Therefore, we seek to reframe this relation between brain anatomy and perfusion more broadly:  Given a perfusion image and a structural anatomical image, how much information is unique to the perfusion image, and how much of the perfusion image can be reconstructed given the structural image? 
+Many modalities of medical imaging contain information that can be partially captured by other modalities.  In particular, a body of prior work establishes that perfusion and structural signal is shared across modalities.  Franklin et al.\ recently showed that acute baclofen-induced perfusion decreases induce changes in T1-derived gray matter (GM) density \cite{franklin_vbm_2013}.  A prior study showed increases in observed GM density following acute administration of levodopa \cite{salgado-pineda_brain_2006}.  Chronically, decreased perfusion may result in decreased cortical thickness \cite{fierstra_steal_2010}.  This connection between brain perfusion and structure may confound efforts to correlate disease processes with either perfusion or structure \cite{villain_relationships_2008,chetelat_direct_2008,chen_age-associated_2011,tosun_mri_2012,tosun_joint_2010,jarnum_longitudinal_2011}.  In brief, structural modalities are not purely structural and may inform and even directly predict functional signal. 
 
-As a motivating example problem, we consider perfusion measurements of normally developing adolescents.  Perfusion studies of normally developing children have shown changes over development \cite{chiron_changes_1992,wintermark_brain_2004,biagi_age_2007,jain_longitudinal_2012,satterthwaite_functional_2013,wang_pediatric_2003,wang_pediatric_2006} .  In parallel, many studies have focused on structural brain changes over development, including such metrics as cortical thickness \cite{shaw_neurodevelopmental_2008} and white matter structure \cite{tamnes_brain_2010}.  Some of the changes in perfusion are likely due to development of the underlying anatomical substrate, including such developments as cortical thickness, gyrification indices \cite{blanton_mapping_2001,su_geometric_2013}, and possibly other, more subtle anatomical changes.On the other hand, it is possible that some of the changes in perfusion are due only to changes in the perfusion of specific cortical areas that are not explained by structural changes.  We seek to improve the interpretability of perfusion imaging by separating the component of cortical perfusion that can be explained by structural features from the component of cortical perfusion that is due to biological processes that are not driven by the underlying anatomy.  This separation will help evaluate what unique information is gained by using perfusion imaging as compared to anatomical imaging modalities, thus enabling more principled and informative integration of perfusion imaging into multimodal neuroimaging population studies. The residual perfusion signal represents localized processes that are not explained by the global anatomy-perfusion relationship, possibly signifying development of functional brain networks.  
 
-Several image processing strategies incorporate knowledge of one modality to improve the interpretability of a second modality, especially where the two modalities offer complementary sources of information.  One of the most commonly encountered variants of this problem occurs in positron emission tomograpy (PET) image processing.  PET images have low spatial resolution, leading to significant partial volume effects (PVE) \cite{hoffman_quantitation_1979}.  A widespread method for correcting these partial volume effects is to divide the PET image by gray and white matter probability images (e.g., \cite{muller-gartner_measurement_1992}).  By assuming that PET activity within white matter is known, it is then possible to reconstruct the amount of signal that would have resulted from a purely gray matter voxel.  Similar strategies have been pursued for arterial spin labeling (ASL) perfusion \cite{williams_magnetic_1992} partial volume corrections.  Many ASL partial volume correction methods assume that white matter has perfusion that is 40\% of a comparable unit of gray matter \cite{johnson_pattern_2005}, based on quantitative \textit{in vivo} measures of ASL perfusion \cite{roberts_quantitative_1994}.  More sophisticated models include partial volume corrections based on locally determined gray matter activation \cite{asllani_regression_2008,asllani_separating_2009}, a kinetic equation for multiple inversion time ASL \cite{chappell_partial_2011}, and specially designed pulse sequences \cite{petr_partial_2012}.  In addition, some studies have incorporated the presence of brain lesions for partial volume correction of ASL images \cite{schuff_cerebral_2009}.  
+
+To improve interpretability of effects that are correlated across modalities, it is common to apply a correction to emphasize the information unique to a given modality.  For example, many perfusion image processing protocols correct the perfusion image for partial volume effects due to variations in gray matter/white matter ratios \cite{muller-gartner_measurement_1992}, since gray matter and white matter have markedly different perfusion values \cite{roberts_quantitative_1994}.  In addition to partial volume and other technical challenges, though, perfusion in a given voxel may be at least partially determined by the underlying brain anatomy.  Therefore, we seek to reframe this relation between brain anatomy and perfusion more broadly:  Given a perfusion image and a structural anatomical image, how much information is unique to the perfusion image, and how much of the perfusion image can be reconstructed given the structural image? A schematic of this approach is shown in Figure \ref{fig:overview}. 
+
+As a motivating example problem, we consider perfusion measurements of typically developing adolescents.  Perfusion studies of typically developing children have shown changes over development \cite{chiron_changes_1992,wintermark_brain_2004,biagi_age_2007,jain_longitudinal_2012,satterthwaite_functional_2013,wang_pediatric_2003,wang_pediatric_2006} .  In parallel, many studies have focused on structural brain changes over development, including such metrics as cortical thickness \cite{shaw_neurodevelopmental_2008} and white matter structure \cite{tamnes_brain_2010}.  Some of the changes in perfusion are likely due to development of the underlying anatomical substrate, including such developments as cortical thickness, gyrification indices \cite{blanton_mapping_2001,su_geometric_2013}, and possibly other, more subtle anatomical changes. On the other hand, it is possible that some of the changes in perfusion are due only to changes in the perfusion of specific cortical areas that are not explained by structural changes.  We seek to improve the interpretability of perfusion imaging by separating the component of cortical perfusion that can be explained by structural features from the component of cortical perfusion that is due to biological processes not driven by the underlying anatomy.  This separation will help evaluate what unique information is gained by using perfusion imaging as compared to anatomical imaging modalities, thus enabling more principled and informative integration of perfusion imaging into multimodal neuroimaging population studies. The residual perfusion signal represents localized processes that are not explained by the global anatomy-perfusion relationship, signifying development of functional specialization.   
+
+\begin{figure}
+\centering
+\makebox[\linewidth][c]{
+\includegraphics[width=14cm]{figure/ASL_StructureFunction_Overview_OneSubject.pdf}
+}
+\caption{Schematic of predicting perfusion from structural MRI.}
+\label{fig:overview}
+\end{figure}  
+
+Several image processing strategies incorporate knowledge of one modality to improve the interpretability of a second modality, especially where the two modalities offer complementary sources of information.  One of the most commonly encountered variants of this problem occurs in positron emission tomograpy (PET) image processing.  PET images have low spatial resolution, leading to significant partial volume effects (PVE) \cite{hoffman_quantitation_1979}.  A widespread method for correcting these partial volume effects is to divide the PET image by gray and white matter probability images (e.g., \cite{muller-gartner_measurement_1992}).  By assuming that PET activity within white matter is known, it is then possible to reconstruct the amount of signal that would have resulted from a purely gray matter voxel.  Similar strategies have been pursued for arterial spin labeling (ASL) perfusion \cite{williams_magnetic_1992} partial volume correction.  Many ASL partial volume correction methods assume that white matter has perfusion that is 40\% of a comparable unit of gray matter \cite{johnson_pattern_2005}, based on quantitative \textit{in vivo} measures of ASL perfusion \cite{roberts_quantitative_1994}, even though this ratio is almost certainly dependent on image resolution.  More sophisticated models include partial volume correction based on locally determined gray matter activation \cite{asllani_regression_2008,asllani_separating_2009}, a kinetic equation for multiple inversion time ASL \cite{chappell_partial_2011}, and specially designed pulse sequences \cite{petr_partial_2012}.  In addition, some studies have incorporated the presence of brain lesions for partial volume correction of ASL images \cite{schuff_cerebral_2009}.  
 
 \begin{figure}
 \centering
@@ -80,16 +92,16 @@ Several image processing strategies incorporate knowledge of one modality to imp
 \label{fig:flowchart}
 \end{figure}
 
-Fundamentally, partial volume correction aims to reconstruct the ideal image that the scanner would have seen had technical impediments, such as scanner resolution and point spread function, not interfered with the imaging.  Although this correction is an important consideration when interpreting perfusion images, it only partially accounts for the effects of underlying brain structure.  Besides technical difficulties with obtaining accurate perfusion measurements, there may be genuine interactions between the underlying anatomy and the observed perfusion that go beyond white and gray matter probabilities.  Position along a sulcus, cortical curvature and thickness, and cortical folding patterns may also contribute to the observed perfusion value.  
+Fundamentally, partial volume correction aims to reconstruct the ideal image that the scanner would have seen had technical impediments, such as scanner resolution and point spread function, not interfered.  Although this correction is an important consideration when interpreting perfusion images, it only partially accounts for the effects of underlying brain structure.  Besides technical difficulties with obtaining accurate perfusion measurements, there may be genuine interactions between the underlying anatomy and the observed perfusion that go beyond white and gray matter probabilities. 
 
-Generating a feature vector for each voxel that contains all the necessary information to reconstruct perfusion from anatomy is not straightforward.  Gray matter and white matter probabilities are nearly always used when predicting perfusion from anatomical imaging.  
-Cortical thickness may also be correlated to perfusion.  In addition to these features, we propose learning anatomical features implicitly from the anatomical image to predict perfusion.  We learn a dictionary of anatomical patch features that can be used to predict perfusion, with the atoms, or elements, in the dictionary corresponding to paradigmatic textural and anatomical features. In contrast to traditional dictionary learning approaches, we construct rotation-invariant dictionaries to enable more complete sharing between similar anatomical structures across the brain.  This rotation invariance allows, for example, sharing of information between right and left sides of the brain, which would not be possible when using traditional dictionary learning techniques. Rotation invariance is particularly important in 3D images, as the number of possible orientations increases exponentially with the number of dimensions. Projecting patches focused at every voxel in the image onto the rotation invariant dictionary produces a feature weight image for each atom, in the dictionary.  We combine the structural feature weights with the probabilitistic segmentation images in a linear model to predict perfusion from the structurally derived measures.  This linear model then produces a ``structural'' perfusion image, corresponding to the predicted perfusion given the structural features, and a residual  perfusion image, corresponding to the perfusion that cannot be explained by structural information.   A graphical abstract of our method is shown in Figure \ref{fig:flowchart}.   
+Moreover, generating a feature vector for each voxel that contains all the necessary information to reconstruct perfusion from anatomy is not straightforward.  Gray matter and white matter probabilities are nearly always used when predicting perfusion from anatomical imaging, even though they provide only a limited model of the structure-perfusion relationship.  
+Cortical thickness may also be correlated to perfusion.  Here, we present RIPMMARC (Rotation Invariant Patch-based Multi-Modality Analysis aRChitecture), an alternative data-driven strategy of deriving structure-perfusion relationships implicitly.  RIPMMARC provides a way to encode more detailed local structural information about a given voxel in an image than a scalar intensity value, and this information can be used to predict the perfusion at that point.  From concurrently acquired structural and perfusion images, we learn a dictionary of anatomical patch features that can be used to predict perfusion, with the atoms, or elements, in the dictionary corresponding to paradigmatic textural and anatomical features. Mean-centering each input patch ensures that the dictionary contains gradient information invariant to raw intensity value, with  intensity  represented in corresponding tissue probability values.  In contrast to traditional dictionary learning approaches, we construct rotation-invariant dictionaries to enable more complete sharing between similar anatomical structures across the brain.  This rotation invariance allows, for example, sharing of information between right and left sides of the brain, which would not be possible when using traditional dictionary learning techniques. Rotation invariance is particularly important in 3D images, as the number of possible orientations increases with the number of dimensions. Projecting patches focused at every voxel in the image onto the rotation invariant dictionary produces a locally varying feature weight image for each atom in the dictionary.  We combine the structural feature weights with the probabilitistic segmentation images in a linear model to predict perfusion from the structurally derived measures.  This linear model then produces a ``structurally predicted'' perfusion image, corresponding to the predicted perfusion given the structural features, and a residual  perfusion image, corresponding to the perfusion that cannot be explained by structural information.    A graphical abstract of our method is shown in Figure \ref{fig:flowchart}.   
 
-The method we use to construct the feature representation of the input image is inspired by feature learning methods \cite{ranzato_unsupervised_2007,aharon_k-svd:_2006,mairal_discriminative_2008}; rotation-invariant feature transforms \cite{lowe_object_1999,ke_pca-sift:_2004,bay_surf:_2006,toews_efficient_2013} and dictionary learning methods \cite{chen_rotation_2012,barthelemy_shift_2012};  and modality synthesis algorithms \cite{hertzmann_image_2001,wang_deringing_2006,rueda_single-image_2013,rousseau_non-local_2010}.  To the best of our knowledge, this work is the first to use rotation invariance for image synthesis.  In addition, our work uses a much more expressive and accurate model for predicting CBF from structural information than prior work.  
+RIPMMARC is inspired by feature learning methods \cite{ranzato_unsupervised_2007,aharon_k-svd:_2006,mairal_discriminative_2008}; rotation-invariant feature transforms \cite{lowe_object_1999,ke_pca-sift:_2004,bay_surf:_2006,toews_efficient_2013} and dictionary learning methods \cite{chen_rotation_2012,barthelemy_shift_2012};  and modality synthesis algorithms \cite{hertzmann_image_2001,wang_deringing_2006,rueda_single-image_2013,rousseau_non-local_2010}.  To the best of our knowledge, this work is the first to use rotation invariance for image synthesis.  In addition, our work uses a much more expressive and accurate model for predicting CBF from structural information than prior work.  
 
 
 
-In sum, we make the following contributions: 1) We propose a novel rotation-invariant dictionary learning method for modality synthesis;  2) We show that these learned dictionaries are significantly better at predicting perfusion than segmentation probability or cortical thickness maps; 3) We demonstrate that this method produces consistent perfusion maps across session scans within a single subject; 4) We show that this method decomposes a noisy raw CBF signal into structural and functional CBF signals, each of which has lower variance over a pediatric population than the original raw CBF image; and 5) The change in the perfusion image not predicted by signal tends to be greatest over development in precuneus and temporal pole, two characteristic regions in the default mode network.  
+In sum, we make the following contributions: 1) We propose a novel rotation-invariant dictionary learning method for modality synthesis;  2) We show that these learned dictionaries are significantly better at predicting perfusion than segmentation probability or cortical thickness maps; 3) We demonstrate that this method produces consistent perfusion maps across session scans within a single subject; 4) We show that this method decomposes the raw CBF signal into structurally predicted and residual CBF signals, and all three signals are linked to age in a pediatric population; and 5) The residual perfusion values display a weaker correlation with age in the occipital cortex and precentral motor cortex and a stronger correlation with age in precuneus and hippocampus, suggesting regionally heterogeneous trajectories of functional specialization that are distinct from trajectories of cortical structural development. 
 
 \section{Methods}
 \subsection{Representations of Structure}
@@ -105,7 +117,7 @@ c_{\mathrm{GM}}(x) \cdot p_{\mathrm{GM}}(x) + c_{\mathrm{WM}}(x) \cdot p_{\mathr
 \end{equation}
 where assuming that $c_{\mathrm{WM}}(x)=0.4 \cdot c_{\mathrm{GM}}(x)$ leads to Equation \ref{eqn:pve_correction}.  Alternatively, it is possible to learn the relation between GM and WM activity from the CBF image directly, either by sampling over lobes \cite{johnson_pattern_2005} or a local kernel centered on the voxel of interest \cite{asllani_regression_2008}.    Both approaches directly analyze the gray matter and white matter probability images as they relate to perfusion.  
 
-As explained in the Introduction, we take a decidedly different approach to incorporating anatomy into CBF analysis.  Instead of attempting to infer the unobservable true GM and WM perfusion in a voxelwise manner, we use all available anatomical information to create a ``best guess'' at what the observed perfusion would be given the anatomy at voxel $x$.  Formulated as a prediction problem, we have 
+As explained in the introduction, we take a decidedly different approach to incorporating anatomy into CBF analysis.  Instead of attempting to infer the unobservable true GM and WM perfusion in a voxelwise manner, we use all available anatomical information to create a ``best guess'' at what the observed perfusion would be given the anatomy at voxel $x$.  Formulated as a prediction problem, we have 
 \begin{equation}
 c_{\mathrm{obs}}(x) = p_{\mathrm{GM}}(x) \beta_{\mathrm{GM}} + p_{\mathrm{WM}}(x) \beta_{\mathrm{WM}} + \mathrm{residual}(x),
 \end{equation}
@@ -125,24 +137,24 @@ C_{\mathrm{obs}} = X \boldsymbol{\beta} + \epsilon.
 The $X \boldsymbol{\beta}$ term corresponds to the component of perfusion that can be predicted from anatomical features, and the $\epsilon$ term corresponds to the component of perfusion that cannot be predicted from anatomical features.  A greater correlation between $C_{\mathrm{obs}}$ and $X \boldsymbol{\beta}$ indicates a more accurate reconstruction of observed perfusion from anatomical features.
 
 \subsection{Dictionary Construction}
-To generate the structural feature matrix, we first construct a rotation-invariant dictionary of ``eigenpatches.'' For computational feasibility, we take a random sampling of 1000 patches, each of which consist of a sphere of 7 mm diameter, from around the image.  We chose a diameter of 7 mm because that is approximately the scale of the cortical features, such as curvature and position along the gyrus or sulcus, that we are interested in modeling.  We construct a sample patch matrix in which every row is a sample patch and the columns are the vectorized patches.  We mean-center each patch to minimize the effect of intensity inhomogeneity and concurrently emphasize the gradient and texture information.  We then perform an eigendecomposition of that patch matrix and retain enough eigenvectors to account for 95\% of the variance of the sample patch matrix.  The eigenvectors of that matrix are the canonical ``eigenpatches'' that can be used for constructing patch-based descriptors.  
+To generate the structural feature matrix, we first construct a rotation-invariant dictionary of ``eigenpatches.'' For computational feasibility, we take a random sampling of 1000 patches, each of which consist of a sphere of 1.4 cm diameter, from around the image.  We chose a diameter of 1.4 cm because that is approximately the scale of the cortical features, such as curvature and position along the gyrus or sulcus, that we are interested in modeling.  We construct a sample patch matrix in which every row is a sample patch and the columns are the vectorized patches.  We mean-center each patch to minimize the effect of intensity inhomogeneity and concurrently emphasize the gradient and texture information.   We then perform an eigendecomposition of that patch matrix and retain enough eigenvectors to account for 95\% of the variance of the sample patch matrix, as we have found that additional eigenvectors provide no benefit in prediction and increase the noise in the predicted image.  The eigenvectors of that matrix are the canonical ``eigenpatches'' that can be used for constructing patch-based descriptors.  
 
-Unlike most traditional dictionary learning methods, we produce a rotation-invariant dictionary.  To achieve rotation invariance, we first reorient all image patches to match the dominant orientations of the first eigenpatch of the sample patch matrix.  The problem of matching the orientation of two vectors has been known as Wahba's problem since it was first posed in the 1960's \cite{wahba_least_1965}, and the analytical solution is known as the Kabsch algorithm \cite{markley_attitude_1988,kabsch_solution_1976}.  The parallel of attitude for satellites in imaging applications is the orientation of the first eigenvector (or two eigenvectors for a 3D image) of the covariance matrix of the gradient of the image.  Denoting the $k$'th eigenvector of the gradient covariance matrix of the reference frame as $w_k$ and the $k$'th eigenvector of the patch to be rotated as $v_k$, we calculate the rotation matrix $Q$ that best aligns them: 
+Unlike most traditional dictionary learning methods, we produce a rotation-invariant dictionary.  To achieve rotation invariance, we first reorient all image patches to match the dominant orientations of the first eigenpatch of the sample patch matrix.  The problem of matching the orientation of two vectors has been known as Wahba's problem since it was first posed in the 1960's in the context of aligning two satellites \cite{wahba_least_1965}, and the analytical solution is known as the Kabsch algorithm \cite{markley_attitude_1988,kabsch_solution_1976}.  The parallel of attitude for satellites in imaging applications is the orientation of the first eigenvector (or two eigenvectors for a 3D image) of the covariance matrix of the gradient of the image.  Denoting the $k$'th eigenvector of the gradient covariance matrix of the reference frame as $w_k$ and the $k$'th eigenvector of the patch to be rotated as $v_k$, we calculate the rotation matrix $Q$ that best aligns them: 
 \begin{equation}
-\underset{\mathbf{Q}}{\operatorname{arg\,max}} \quad \sum_k \| w_k - \mathbf{Q} v_k \|^2
+\underset{Q}{\operatorname{arg\,max}} \quad \sum_k \| w_k - \mathbf{Q} v_k \|^2
 \label{eqn:wahba}
 \end{equation}
-Denoting $B = w_k v_k^T$, we compute the singular value decomposition (SVD) of $B$: $B = U S V^\mathrm{T}$.  Then the analytical solution to Equation \ref{eqn:wahba} is given by $\mathbf{Q} = U M V^T$, where M = diag[1 1 det(U) det(V)].  A more computationally expensive alternative is to use the Radon transform to estimate orientation \cite{jafari-khouzani_radon_2005,chen_rotation_2012}.  We reorient each image patch to match the orientation of the first eigenvector of the sample patch matrix, and then take a random sampling of the reoriented patches and take the eigendecomposition of those sampled patches.  As before, we retain enough eigenpatches to account for 95\% of the variance of the patch matrix, corresponding to approximately 100 eigenpatches.  The resulting matrix is an orientation-invariant dictionary that can be used to generate a patch-based descriptor of each patch in the image.  These patch-based descriptors capture salient features of the input anatomical patterns and are therefore more generalizable than using the gray-scale value at each point directly.  
+Denoting $B = w_k v_k^T$, we compute the singular value decomposition (SVD) of $B$: $B = U S V^\mathrm{T}$.  Then the analytical solution to Equation \ref{eqn:wahba} is given by $Q = U M V^T$, where M = diag[1 1 det(U) det(V)].  A more computationally expensive alternative is to use the Radon transform to estimate orientation \cite{jafari-khouzani_radon_2005,chen_rotation_2012}.  Without loss of generality, we reorient each image patch to match the orientation of the first eigenvector of the sample patch matrix, and then take a random sampling of the reoriented patches and take the eigendecomposition of those sampled patches.  As before, we retain enough eigenpatches to account for 95\% of the variance of the patch matrix, corresponding to approximately 100 eigenpatches.  The resulting matrix is an orientation-invariant dictionary that can be used to generate a patch-based descriptor of each patch in the image.  These patch-based descriptors capture salient features of the input anatomical patterns and are therefore more generalizable than using the gray-scale value at each point directly.  
 
 \subsection{Feature Learning}
 \label{sec:feature_regression}
-Once we have the rotation-invariant dictionary, we project the reoriented patches corresponding to each voxel in the image onto each rotation-invariant eigenpatch.  This gives us an $n \times k$ feature matrix, where $n$ is the number of voxels in the image and $k$ is the number of eigenpatches.  The columns of this feature matrix correspond to the response of each eigenpatch to the patch centered on each voxel.  In addition to the structural feature matrix, we use the GM and WM probabilities for each voxel in the image.  The GM and WM probabilities are usually the two strongest predictors of blood flow in a given voxel, and we have found that they significantly increase the accuracy of CBF prediction. 
+Once we have the rotation-invariant dictionary, we project the reoriented patches corresponding to each voxel in the image onto each rotation-invariant eigenpatch.  This gives us an $n \times k$ feature matrix, where $n$ is the number of voxels in the image and $k$ is the number of eigenpatches.  The columns of this feature matrix correspond to the response of each eigenpatch to the patch centered on each voxel.  In addition to the structural feature matrix, we use the GM and WM probabilities for each voxel in the image.  The GM and WM probabilities are usually the two strongest predictors of blood flow in a given voxel, and we have found that they significantly increase the accuracy of CBF prediction.  The GM and WM probabilities also model each voxel's intensity value. 
 
 Once we have the final structural predictor matrix, we run a linear model relating CBF to our predictor matrix.  In R notation, 
 \begin{equation}
 \text{CBF signal} \sim \text{GM probability} + \text{WM probability} + \text{Structural predictors}.
 \end{equation}
-To avoid overfitting, we train the model on 5\% of the image, and then predict on the remaining 95\% of the image.  We note that in the current study, we learned the relationship between brain structure and perfusion on a per-subject basis.    A graphical outline of the method is in Figure \ref{fig:flowchart}, and a more formal description of the algorithm is in Algorithm \ref{alg:eigenpatch}.
+To avoid overfitting, we train the model on 5\% of the image, and then predict on the remaining 95\% of the image.  The use of a linear model and the fact that there are several orders of magnitude more training samples than predictors further minimize the risk of overfitting, and we did not observe a tendency to overfit in our data.  We note that in the current study, we learned the relationship between brain structure and perfusion on a per-subject basis.    A graphical outline of the method is in Figure \ref{fig:flowchart}, and a more formal description of the algorithm is in Algorithm \ref{alg:eigenpatch}.  An open-source ITK-based implementation can be found at \url{https://github.com/bkandel/PatchAnalysis}.
 
 \begin{algorithm}
 \begin{algorithmic}
@@ -155,7 +167,7 @@ To avoid overfitting, we train the model on 5\% of the image, and then predict o
   \State $r \leftarrow$ random voxel in $I$.
   \State $t \leftarrow$ vector representation of $\left\lbrace s : s \in N_r \right\rbrace$ 
   \State $t \leftarrow t - \mathrm{mean}(t)$. \Comment{Mean-center patch.}
-  \State $S \leftarrow [P \; t]$.
+  \State $S \leftarrow [S \; t]$.
 \EndFor
 \For{$i=0, \ldots, n-1$}
   \State $t \leftarrow$ vector representation of $\left\lbrace s:s \in N_i \right\rbrace$. 
@@ -176,13 +188,13 @@ To avoid overfitting, we train the model on 5\% of the image, and then predict o
 \end{algorithm}
 
 \subsection{Clinical Data}
-\subsubsection{Test-Retest Data:} The cohort consists of 12 healthy young adult participants (mean age 25.5$\pm$4.5, 7 female). For each subject, data was acquired at two time points in the same day. For each time point, high resolution T1-weighted anatomic images were obtained using 3D MPRAGE imaging sequence and the following acquisition parameters: TR = 1620 ms, TI = 950 ms, TE = 3 ms, flip angle = $15\,^{\circ}$, 160 contiguous slices of 1.0 mm thickness, FOV = 192 $\times$ 256 mm$^2$, matrix = 192$\times$256, 1 NEX with a scan time of 6 min. The resulting voxel size was 1 mm. Additionally, pseudo-continuous ASL (pCASL) images were aquired with 80 alternating tag/control images and 2 M0 images all with 14 contiguous slice of 7.5mm thickness, FOV = 220 $\times$ 220mm$^2$, matrix = 64 $\times$ 64; TI1 = 700ms, TI2 = 1700ms.
+\subsubsection{Test-Retest Data:} The cohort consists of 12 healthy young adult participants (mean age 25.5$\pm$4.5 years, 7 female, 5 male). For each subject, data was acquired at two time points in the same day. For each time point, high resolution T1-weighted anatomic images were obtained using 3D MPRAGE imaging sequence and the following acquisition parameters: TR = 1620 ms, TI = 950 ms, TE = 3 ms, flip angle = $15\,^{\circ}$, 160 contiguous slices of 1.0 mm thickness, FOV = 192 $\times$ 256 mm$^2$, matrix = 192$\times$256, 1 NEX with a scan time of 6 min. The resulting voxel size was 1 mm. Additionally, pseudo-continuous ASL (pCASL) images were aquired with 80 alternating tag/control images and 2 M0 images all with 14 contiguous slice of 7.5mm thickness, FOV = 220 $\times$ 220mm$^2$, matrix = 64 $\times$ 64; TI1 = 700ms, TI2 = 1700ms.  A complete description of this dataset can be found in \cite{chen_testretest_2011}.
 
 <<data.ped, echo=FALSE, results='hide', eval=TRUE, fig.keep='none'>>=
 suppressMessages(library(ggplot2))
 suppressMessages(library(reshape2))
 data.ped <- read.csv('data/JJ_PEDS_Aug_2013.csv')
-nsubj.ped <- nrow(data.ped)
+nsubj.ped <- length(unique(data.ped$SubID))
 tmp <- data.frame(nsubj.ped=nsubj.ped) # just to take care of annoying texmaker bug
 age.ped <- data.frame(Age=data.ped$AgeAtScan/365.25)
 
@@ -203,7 +215,7 @@ ggsave('fig/pediatric_ages.pdf', width=25, height=15, units='cm')
 \end{figure}
 
 
-\subsubsection{Image Preprocessing:} The set of T1 images from each subject's first time points was used to construct a template using ANTs \cite{avants_reproducible_2011}. Additionally, a three-tissue segmentation of the template \cite{avants_open_2011} allowed the labels to be partially masked so only cortex and deep gray structures were labeled. For each time point, the T1 image was registered to the template image using SyN \cite{avants_symmetric_2008}. The subject's T1 image was also registered to the M0 image acquired as a reference for the pCASL using the \verb=antsIntrasubjectIntermodality.sh= script in ANTs. These transforms were composed to map the cortical labels into ASL native space for each time point. For pCASL images, the M0 image served as a reference for motion-correction of all time-point volumes. Sinc interpolation was used to estimate the full time-series for both the control and tag data. Nuisance parameters, including motion and physiological confounds, were included as regressors, along with the tag-control binary label, in a robust regression scheme for CBF calculation \cite{avants_robust_2012}.   The difference between control and tag was used along with relevant acquisition parameters to calculate the ASL-CBF over time.  Full details are available in the open-source script at \url{https://raw.github.com/stnava/ANTs/master/Scripts/antsASLProcessing.sh}. 
+\subsubsection{Image Preprocessing:} The set of T1 images from each subject's first time points was used to construct a template using ANTs \cite{avants_reproducible_2011}. Additionally, a three-tissue segmentation of the template \cite{avants_open_2011} allowed the labels to be partially masked so only cortex and deep gray structures were labeled. For each time point, the T1 image was registered to the template image using SyN \cite{avants_symmetric_2008}. The subject's T1 image was also registered to the M0 image acquired as a reference for the pCASL using the \verb=antsIntrasubjectIntermodality.sh= script in ANTs. These transforms were composed to map the cortical labels into ASL native space for each time point. All anatomical data was downsampled to 2mm isotropic resolution for analysis. For pCASL images, the M0 image served as a reference for motion-correction of all time-point volumes. Nuisance parameters, including motion and physiological confounds, were included as regressors, along with the tag-control binary label, in a robust regression scheme for CBF calculation \cite{avants_robust_2012}.   The difference between control and tag was used along with relevant acquisition parameters to calculate the ASL-CBF over time.  Full details are available in the open-source script at \url{https://raw.github.com/stnava/ANTs/master/Scripts/antsASLProcessing.sh}.  For the pediatric data, the blood T1 value was adjusted for age and gender as $\text{T1} = (2115.6 - 21.5 * \text{age} - 73.3 * \text{sex})  \text{ms}$, where female sex was set to $0$ and male was set to $1$, as suggested in \cite{wu_vivo_2010}.  One subject was eliminated because of extreme non-physiological CBF values, and two subjects were eliminated because of poor image quality with little differentiation between gray matter and white matter.  
 
 \section{Results}
 Before analyzing real neuroimaging data, we first present two synthetic data analyses to provide a greater understanding of the motivation and mechanics of our method.  We demonstrate the operation of the perfusion-anatomy decomposition on simple synthetic images to highlight the effect of orientation invariance when predicting perfusion.  We then perform a simulated population experiment showing how observed changes in perfusion can in fact be due either to the underlying anatomy or changes in perfusion that are not explained by anatomical features.  Following the synthetic experiments, we show that our anatomical features are much better than tissue probability maps or cortical thickness at predicting perfusion, and that both the anatomically predicted and residual functional images are highly reproducible within subjects.  Finally, we demonstrate that the anatomically predicted and residual CBF signals in a pediatric population are tightly correlated with age in a region-specific manner, and that in certain instances have opposing trends.  
@@ -300,11 +312,11 @@ plotANTsImage(asl.struct, outname='fig/FunctionFromStructureOrientationVariant.p
     \label{fig:only_functional_orientation_invariant}
   \end{subfigure}
 
-\caption{Synthetic perfusion and anatomical data.  Some aspects of the perfusion data, such as the higher activity at the intersection of the lines, can be deduced from the underlying anatomy (the intersection of the lines), but other aspects of the perfusion data, such as the increased activity on the upper right line, cannot be deduced from the anatomy. \ref{fig:only_function_orientation_variant},\ref{fig:function_structure_orientation_variant}: Decomposition of synthetic data using non-rotational invariant features.  The constructed features include orientation, so the higher values in the horizontal line are correctly reconstructed. \ref{fig:only_functional_orientation_invariant}, \ref{fig:function_structure_orientation_invariant}: Reconstructed perfusion and residual perfusion decomposition of Figure \ref{fig:synthetic_functional}.  Because orientation invariant features were used, the higher perfusion of the horizontal line is not predicted, but the intersection of the lines does indicate a greater predicted functional signal.  Orientation invariance enables greater information sharing across regions, leading to lower variance in the reconstruction as compared to the reconstruction using non-rotationally invariant features \ref{fig:function_structure_orientation_variant}. }
+\caption{Synthetic perfusion and anatomical data.  Some aspects of the perfusion data, such as the higher activity at the intersection of the lines, can be deduced from the underlying anatomy (the intersection of the lines), but other aspects of the perfusion data, such as the increased activity on the upper right line, cannot be deduced from the anatomy. \ref{fig:function_structure_orientation_variant},\ref{fig:only_function_orientation_variant}: Decomposition of synthetic data using non-rotational invariant features.  The constructed features include orientation, so the higher values in the horizontal line are correctly reconstructed. \ref{fig:function_structure_orientation_invariant},\ref{fig:only_functional_orientation_invariant}: Reconstructed perfusion and residual perfusion decomposition of Figure \ref{fig:synthetic_functional}.  Because orientation invariant features were used, the higher perfusion of the horizontal line is not predicted, but the intersection of the lines does indicate a greater predicted functional signal.  Orientation invariance enables greater information sharing across regions, leading to lower variance in the reconstruction as compared to the reconstruction using non-rotationally invariant features (\ref{fig:function_structure_orientation_variant}). }
 \label{fig:synthetic_decomposition}
 \end{figure}
 
-We generated synthetic data to demonstrate how the proposed method decomposes simulated functional images into its purely functional component and to the component that can be inferred from structure. Figure \ref{fig:synthetic_decomposition} shows the ``anatomical'' and ``perfusion'' components of the data.  Some aspects of the perfusion data, such as the increased activity at the intersections of the lines, can be inferred from the structure of the image (when trained on an appropriate reference functional image).  Other aspects of the functional data, such as the increased activity on the upper right-hand line, cannot be inferred from the structural data: Given a patch-based descriptor of a given voxel in the structural image, it is impossible to tell whether the corresponding perfusion voxel has a high or low value.  In addition, certain functional values can only be inferred from the orientation of the structure.  For example, the horizontal central line has a higher functional value than the vertical lines.  Given only an orientation-invariant feature description of the central line, it is impossible to tell what the functional value is. Figure \ref{fig:synthetic_decomposition} shows the result of the decomposition.  As we would expect, both decompositions do not predict the increased activity in the upper right-hand line from the structural data, but do reconstruct the increased activity at the intersections of the lines.  Only the non-rotation invariant decomposition reconstructs the increased activity on the horizontal line.  On the other hand, constructing orientation-invariant features enables sharing more data across regions, leading to a lower-variance reconstruction (Figure \ref{fig:function_structure_orientation_invariant}).  We consider the structure of neuroimaging data to be ``rotation-invariant'' in the sense that a gyrus pointing superiorly is equivalent to a gyrus pointing inferiorly.  This rotation invariance enables information to be shared across hemispheres of the brain and reduces the chances of overfitting to a specific region. 
+We generated synthetic data to demonstrate how the proposed method decomposes simulated functional images into its purely functional component and to the component that can be inferred from structure. Figure \ref{fig:synthetic_decomposition} shows the ``anatomical'' and ``perfusion'' components of the data.  Some aspects of the perfusion data, such as the increased activity at the intersections of the lines, can be inferred from the structure of the image (when trained on an appropriate reference functional image).  Other aspects of the functional data, such as the increased activity on the upper right-hand line, cannot be inferred from the structural data: Given a patch-based descriptor of a given voxel in the structural image, it is impossible to tell whether the corresponding perfusion voxel has a high or low value.  In addition, certain functional values can only be inferred from the orientation of the structure.  For example, the horizontal central line has a higher functional value than the vertical lines.  Given only an orientation-invariant feature description of the central line, it is impossible to tell what the functional value is. Figure \ref{fig:synthetic_decomposition} shows the result of the decomposition.  As expected, both decompositions do not predict the increased activity in the upper right-hand line from the structural data, but do reconstruct the increased activity at the intersections of the lines.  Only the non-rotation invariant decomposition reconstructs the increased activity on the horizontal line.  On the other hand, constructing orientation-invariant features enables sharing more data across regions, leading to a lower-variance reconstruction (Figure \ref{fig:function_structure_orientation_invariant}).  We consider the structure of neuroimaging data to be ``rotation-invariant'' in the sense that a gyrus pointing superiorly is equivalent to a gyrus pointing inferiorly.  This rotation invariance enables information to be shared across hemispheres of the brain and reduces the chances of overfitting to a specific region. 
 
 \subsection{Simulated Population Study}
 <<plotBlobs, echo=FALSE, eval=FALSE>>=
@@ -335,7 +347,7 @@ plotANTsImage(atlas, axis=3, functional=list(perfmap),
               outname='fig/perfmap.jpg', quality=5)
 @
 
-To demonstrate the need for a structure-function decomposition that differentiates between differences in perfusion that are due to structural differences and those that are due to functional differences, we constructed a simulated data set that includes structural and functional effects.  Throughout the brain, we simulated an ASL perfusion image based on the gray and white matter probability maps, with added noise.  Using the notation from Section \ref{sec:struct}, at voxel $x \in \mathcal{I}$:
+To demonstrate the need for a structure-function decomposition that differentiates between changes in perfusion that are due to structural abnormalities and those that are unrelated to the underlying structural substrate, we constructed a simulated data set that includes structural and functional effects.  Throughout the brain, we simulated an ASL perfusion image based on the gray and white matter probability maps, with added noise.  Using the notation from Section \ref{sec:struct}, at voxel $x \in \mathcal{I}$:
 \begin{equation}
 c_{\mathrm{obs}}(x) = 100 \cdot p_{\mathrm{GM}}(x) + 40 \cdot p_{\mathrm{WM}}(x)  + \text{noise}
 \end{equation}
@@ -345,7 +357,7 @@ c_{\mathrm{obs}}(x) = 100 \cdot p_{\mathrm{GM}}(x) + 40 \cdot p_{\mathrm{WM}}(x)
 \end{equation}
 In the third blob, we increased the GM probability and also added additional perfusion above that predicted by the increased GM probability.  This blob represents an area that has both a structural abnormality (increased GM probability) and a perfusion abnormality (increased perfusion above that predicted by GM content). To recover an anatomy-perfusion decomposition of the images, we regressed out the anatomical information (GM and WM probability maps) from the perfusion images following the method in Section \ref{sec:feature_regression}.  This regression gave us two images:  The perfusion predicted from structure, and the residual functional activation that is not explained by structure, in addition to the original perfusion images. 
 
-We ran a voxelwise t-test comparing control vs. experimental groups on the three types of images.  The results are shown in Figure \ref{fig:simulation}.  Reporting voxelwise $p$-statistic maps on the raw perfusion images shows all three blobs, because all three blobs indeed had increased perfusion in the experimental group (Figure \ref{fig:sim_perfusion}).  $p$-statistic maps on the residual functional images show both the residual perfusion blob and the combined anatomical and perfusion blob (Figure \ref{fig:sim_func}).  This image, however, ignores the potentially biologically important role of decreased perfusion caused by abnormal anatomy.  The $p$-statistic map on the perfusion images as predicted by anatomy shows this missing information (Figure \ref{fig:sim_struct}). 
+We ran a voxelwise t-test comparing control vs. experimental groups on the three types of images.  The results are shown in Figure \ref{fig:simulation}.  The voxelwise $p$-statistic maps on the raw perfusion images shows all three blobs, because all three blobs indeed had increased perfusion in the experimental group (Figure \ref{fig:sim_perfusion}).  $p$-statistic maps on the residual functional images show both the residual perfusion blob and the combined anatomical and perfusion blob (Figure \ref{fig:sim_func}).  This image, however, ignores the potentially biologically important role of decreased perfusion caused by abnormal anatomy.  The $p$-statistic map on the perfusion images as predicted by anatomy shows this missing information (Figure \ref{fig:sim_struct}). 
 \begin{figure}
 \centering
 \begin{subfigure}{\textwidth}
@@ -386,7 +398,7 @@ We ran a voxelwise t-test comparing control vs. experimental groups on the three
 
 
 \subsection{Sample subject}
-The mean CBF as well as CBF that can be predicted from structure as well as purely functional CBF, with reconstruction from probability maps for reference, for a sample subject are presented in Figure \ref{fig:sample_subj_imgs}.  The structural CBF provides a better prediction of the raw CBF image, and in particular predicts higher perfusion in sulcal pits.  A quantitative depiction of the correlation between predicted and actual CBF is given in Figure \ref{fig:sample_subj_cor}.
+The raw perfusion image, the perfusion that can be predicted from structure, and the residual perfusion images for a sample subject are shown in Figure \ref{fig:sample_subj_imgs}.  For reference, the perfusion that can be predicted from probability maps is also shown.   Our structural predictors are better at predicting CBF than the the probability maps, and in particular predicts higher perfusion in sulcal pits.  A quantitative depiction of the correlation between predicted and actual CBF is given in Figure \ref{fig:sample_subj_cor}.
 
 \begin{figure}
 \centering
@@ -403,7 +415,7 @@ The mean CBF as well as CBF that can be predicted from structure as well as pure
 \end{subfigure}
 \hspace{1em}
 \begin{subfigure}[t]{5cm}
-  \includegraphics[height=6cm]{figure/funcCBF.png}
+  \includegraphics[height=6cm]{figure/functionalCBF.png}
   \caption{``Functional'' CBF image that cannot be reconstructed from structure.}
   \label{fig:sample_funcCBF}
 \end{subfigure}
@@ -413,7 +425,7 @@ The mean CBF as well as CBF that can be predicted from structure as well as pure
   \caption{CBF image reconstructed using only probability maps.}
   \label{fig:sample_probCBF}
 \end{subfigure}
-\caption{Comparison of mean CBF image and reconstruction from anatomy, residual perfusion image, and reconstruction from GM and WM probability images.  Mean CBF image is shown at ASL resolution (3.4mmx3.4mmx7.5mm); other images are shown at 1mm isotropic resolution. TODO: Should this be cortex (or GM) only? }
+\caption{Comparison of mean CBF image and reconstruction from anatomy, residual perfusion image, and reconstruction from GM and WM probability images.  Mean CBF image is shown at ASL resolution (3.4mmx3.4mmx7.5mm); other images are shown at 2mm isotropic resolution. }
 \label{fig:sample_subj_imgs}
 \end{figure}
 
@@ -435,7 +447,7 @@ The mean CBF as well as CBF that can be predicted from structure as well as pure
 
 \subsection{Variance explained} 
 <<TestRetest, eval=booleval>>=
-cors <- read.csv('analysis/Predictions.csv')
+cors <- read.csv('analysis/Predictions_lores.csv')
 cors[,1] <- NULL
 cors.m <- melt(cors)
 colnames(cors.m) <- c('Predictor', 'Correlation')
@@ -447,93 +459,158 @@ ggsave('figure/TestRetest.pdf', width=14, height=7)
 \begin{figure}
 \centering 
 \includegraphics[width=15cm]{figure/VarianceExplained.pdf}
-\caption{CBF prediction accuracy: Performance evaluation of CBF predicting test-retest CBF; probability maps; probability maps and thickness; and our structural predictors in predicting CBF.  Our structural predictors are much better at predicting CBF than probability maps, and account for roughly half the reproducible ASL signal.  This result indicates that our structural predictors are more appropriate for structural correction of perfusion than using only tissue probability maps and cortical thickness.}
+\caption{Correlation of CBF with: retest CBF; probability images; probability images and thickness; and our structural predictors.  Our structural predictors are much better at predicting CBF than probability images, and account for roughly half the reproducible ASL signal.  This result indicates that our structural predictors are more appropriate for structural correction of perfusion than using only tissue probability images and cortical thickness.}
 \label{fig:variance_explained}
 \end{figure}
 
-The structural features we compute are significantly better at predicting perfusion data than gray and white matter probability masks and than cortical thickness maps.  Figure \ref{fig:variance_explained} compares predicted vs.\ actual perfusion values using the proposed method, segmentation probability maps, cortical thickness for the test-retest cohort.  The correlation is computed voxel-wise across the gray matter, and each sample corresponds to one subject.    The higher correlation of our structural predictors with CBF as compared to the controls indicates that our predictors are more effective at explaining observed perfusion than the control predictors. 
+The structural features we compute are significantly better at predicting perfusion data than gray and white matter probability masks and than cortical thickness maps.  Figure \ref{fig:variance_explained} compares predicted vs.\ actual perfusion values using the proposed method, segmentation probability maps, and cortical thickness for the test-retest cohort.  The correlation is computed voxel-wise across the gray matter, and each sample corresponds to one subject.    The higher correlation of our structural predictors with CBF as compared to the controls indicates that our predictors are more effective at explaining observed perfusion than the control predictors. 
 
 \subsection{Reproducibility}
+<<Reproducibility, eval=TRUE>>=
+retest <- read.csv('analysis/Reproducibility_lores.csv')
+retest[, 1] <- NULL
+retest.m <- melt(retest)
+colnames(retest.m) <- c('Measure', 'Reproducibility')
+ggplot(retest.m, aes(Measure, Reproducibility)) + geom_boxplot(aes(fill=Measure)) +
+  ylab('Reproducibility') + theme(text=element_text(size=25)) + ggtitle('Reproducibility of Measures (GM)')
+ggsave('figure/Reproducibility.pdf', width=17, height=7)
+@
+
 \begin{figure}
 \centering
 \includegraphics[width=15cm]{figure/Reproducibility.pdf}
 \caption{Reproducibility of mean CBF and derived CBF measures.  Reproducibility is reported as the voxelwise correlation of the measure at two scans taken one hour apart.}
 \label{fig:reproducibility}
 \end{figure}
-A key measure of the reliability of a clinical measurement is its test-retest reproducibility within a given subject.  We evaluated the test-retest reproducibility of our anatomically-predicted and residual perfusion images and compared them to the reproducibility of the raw CBF signal and reproducibility of perfusion as predicted by tissue probability maps and cortical thickness.  We evaluated reproducibility by voxel-wise correlation between the images at two time points for a given subject.  We found that the test-retest voxel-wise correlation of CBF was roughly 0.65, and both the anatomically predicted and residual CBF were within 0.1 of that value.  Although the high reproducibility of the structurally predicted CBF was expected, the high reproducibility of the residual CBF indicates that it is not simply random noise and varies in a consistent way across subjects. 
+A key measure of the reliability of a clinical measurement is its test-retest reproducibility within a given subject.  We evaluated the test-retest reproducibility of our anatomically-predicted and residual perfusion images and compared them to the reproducibility of the raw CBF signal and reproducibility of perfusion as predicted by tissue probability maps and cortical thickness (Figure \ref{fig:reproducibility}).  We evaluated reproducibility by voxel-wise correlation between the images at two time points for a given subject.  The most reproducible measure was the CBF predicted by the probability maps, as this value is dependent only the CBF value averaged across an entire tissue compartment and is therefore highly reproducible.  The voxel-wise reproducibility of CBF measurement was found to be \Sexpr{mean(retest$CBF.Retest)}$\pm$\Sexpr{sd(retest$CBF.Retest)}, and this value serves as the upper bound on the reproducibility of predictions from spatially varying anatomical predictors.  Predictions from probability maps and thickness on the one hand and our structural predictors have similar reproducibility to the raw CBF images.  The residual CBF image was less reproducible as compared to raw CBF reproducibility (\textit{p}-value$=$\Sexpr{t.test(retest$CBF.Retest, retest$Functional.CBF)$p.value}), but still displayed relatively high reproducibility across subjects (\Sexpr{mean(retest$Functional.CBF)}$\pm$\Sexpr{sd(retest$Functional.CBF)}).  Although the high reproducibility of the structurally predicted CBF was expected, the high reproducibility of the residual CBF indicates that it is not simply random noise and varies in a consistent way across subjects.  
 
 \subsection{Pediatric Population Study}
 <<peds_study,echo=FALSE,results='hide',eval=TRUE, warnings=FALSE>>=
+#$ texmaker bug again...
 suppressMessages(require(ggplot2))
+suppressMessages(require(mgcv))
 suppressPackageStartupMessages(require(reshape2))
 suppressMessages(require(ANTsR))
 data(aal)
-replot <- FALSE
-demog <- read.csv('analysis/DemogWithASLVals_lores.csv')
+replot <- TRUE
+demog <- read.csv('analysis/DemogWithASLVals_lores_CBFWarpedToT1.csv')
 #myrois <- c(1, 3, 7, 13, 37, 45, 55, 49, 63, 67,  81, 85) # left precuneus
-myrois <- c(37, 38, 49, 50, 67, 68) # minimal set--hippocampus, precuneus, occipital, left and right
-badsubj <- c(127,66) # to be deleted
-
+roi.dmn <- aal$label_num[aal$isdmn == 1]
+dmn.funcvals <- NULL
+dmn.structvals <- NULL
+dmn.rawvals <- NULL
+for ( i in 1:length(roi.dmn)){
+  dmn.funcvals <- cbind(dmn.funcvals, 
+          demog[, paste('FuncCBFVals.Label', roi.dmn[i], sep='')])
+  dmn.structvals <- cbind(dmn.structvals, 
+          demog[, paste('StructCBFVals.Label', roi.dmn[i], sep='')])
+  dmn.rawvals <- cbind(dmn.rawvals, 
+          demog[, paste('RawCBFVals.Label', roi.dmn[i], sep='')])          
+}
+dmn.funcavg <- apply(dmn.funcvals, 1, mean, na.rm=T)
+dmn.structavg <- apply(dmn.structvals, 1, mean, na.rm=T)
+dmn.rawavg <- apply(dmn.rawvals, 1, mean, na.rm=T)
+demog <- cbind(demog, data.frame(FuncCBFVals.LabelDMN=dmn.funcavg, StructCBFVals.LabelDMN=dmn.structavg, 
+                 RawCBFVals.LabelDMN=dmn.rawavg))
+myrois <- data.frame(Names=c('L. Precent.', 'R. Precent.', 'L. Med. Front.', 'R. Med. Front', 
+                             'L. Orb.', 'R. Orb.', 
+                             'L. Hipp.', 'R. Hipp.','L. Precun.', 'R. Precun.', 
+                             'L. Sup. Occ.', 'R. Sup. Occ.', 'L. Postcent.', 'R. Postcent.', 
+                             'L. Supra.', 'R. Supra.', 'DMN'), 
+            ROINum=as.vector(c(1, 2, 23, 24, 25, 26, 37, 38, 67, 68,  49, 50, 57, 58, 63, 64, 'DMN') ))
+#myrois <- data.frame(Names=aal$label_name[aal$isdmn == 1], ROINum = (1:dim(aal)[1])[ aal$isdmn == 1])           
+#c(37, 38, 49, 50, 57, 67, 68) # minimal set--hippocampus, precuneus, occipital, left and right
+badsubj <- c(127,66, 75) # to be deleted
 peds.stat <- NULL
-for (roi in myrois) {
+for (roi in 1:dim(myrois)[1]) {
   mydat.age <- data.frame(Age=demog$AgeAtScan[-badsubj],
-    RawCBF=demog[, paste('RawCBFVals.Label', roi, sep='')][-badsubj],
-    StructCBF=demog[, paste('StructCBFVals.Label', roi, sep='')][-badsubj],
-    FuncCBF=demog[, paste('FuncCBFVals.Label', roi, sep='')][-badsubj])
+    RawCBF=demog[, paste('RawCBFVals.Label', as.vector(myrois$ROINum)[roi], sep='')][-badsubj],
+    StructCBF=demog[, paste('StructCBFVals.Label', as.vector(myrois$ROINum)[roi], sep='')][-badsubj],
+    ResidCBF=demog[, paste('FuncCBFVals.Label', as.vector(myrois$ROINum)[roi], sep='')][-badsubj])
   mydat.age.m <- melt(mydat.age, id="Age")
-  mydat.thick <- data.frame(Thick=demog[, paste('Thickness_AAL.AAL', roi, sep='')][-badsubj], 
-    RawCBF=demog[, paste('RawCBFVals.Label', roi, sep='')][-badsubj],
-    StructCBF=demog[, paste('StructCBFVals.Label', roi, sep='')][-badsubj],
-    FuncCBF=demog[, paste('FuncCBFVals.Label', roi, sep='')][-badsubj])    
-  mydat.thick.m <- melt(mydat.thick, id="Thick")
+#  mydat.thick <- data.frame(Thick=demog[, paste('Thickness_AAL.AAL', myrois$ROINum[roi], sep='')][-badsubj], 
+#    RawCBF=demog[, paste('RawCBFVals.Label', myrois$ROINum[roi], sep='')][-badsubj],
+#    StructCBF=demog[, paste('StructCBFVals.Label', myrois$ROINum[roi], sep='')][-badsubj],
+#    ResidCBF=demog[, paste('FuncCBFVals.Label', myrois$ROINum[roi], sep='')][-badsubj])    
+#  mydat.thick.m <- melt(mydat.thick, id="Thick")
   colnames(mydat.age.m) <- c('Age', 'Measurement', 'Value')
-  colnames(mydat.thick.m) <- c('Thickness', 'Measurement', 'Value')
+#  colnames(mydat.thick.m) <- c('Thickness', 'Measurement', 'Value')
   if(replot){
     ggplot(mydat.age.m, aes(Age, Value, colour=Measurement)) + geom_point(na.rm=T) +
-      geom_smooth(method="lm", na.rm=T) + ggtitle(paste('Functional, Structural, PVC, and Raw CBF vs. Age for', aal$label_name[roi])) +
-      xlab('Age (years)') + ylab('CBF (ml/100g/min)') + theme(text=element_text(size=20)) + ylim(-50, 200)
-    ggsave(paste('figure/FunctionalStructuralDecomposition', aal$label_name[roi], '.pdf', sep=''),
-      width=14, height=7)
-    ggplot(mydat.thick.m, aes(Thickness, Value, colour=Measurement)) + geom_point(na.rm=T) + 
-      geom_smooth(method='lm', na.rm=T) + xlab('Thickness (mm)') +
-      ylab('CBF (ml/100g/min') + 
-      ggtitle(paste('Raw, Structurally Predicted, and Residual CBF vs. Cortical Thickness for', aal$label_name[roi]))
-    ggsave(paste('figure/CBFVsThickness', aal$label_name[roi], '.pdf', sep=''), 
-      width=14, height=7)
+      geom_smooth(method='lm', na.rm=T) + 
+      ggtitle(paste('Raw, Structural, and Residual CBF vs. Age,', myrois$Names[roi])) +
+      xlab('Age (years)') + ylab('CBF (ml/100g/min)') + theme(text=element_text(size=30)) + ylim(-50, 175)
+    if(is.na(as.numeric(as.vector(myrois$ROINum)[roi]))) {
+      ggsave('figure/FunctionalStructuralDecompositionDMN.pdf',
+        width=14, height=7)
+    } else { 
+      ggsave(paste('figure/FunctionalStructuralDecomposition', 
+        aal$label_name[as.numeric(as.vector(myrois$ROINum)[roi])], '.pdf', sep=''),
+        width=14, height=7)
+    }
+#    ggplot(mydat.thick.m, aes(Thickness, Value, colour=Measurement)) + geom_point(na.rm=T) + 
+#      geom_smooth(method='lm', na.rm=T) + xlab('Thickness (mm)') +
+#      ylab('CBF (ml/100g/min') + 
+#      ggtitle(paste('Raw, Structurally Predicted, and Residual CBF vs. Cortical Thickness,', 
+#        aal$label_name[myrois$ROINum[roi]]))
+#    ggsave(paste('figure/CBFVsThickness', aal$label_name[myrois$ROINum[roi]], '.pdf', sep=''), 
+#      width=14, height=7)
   }
-  func.lm   <- summary(lm(mydat.age$FuncCBF ~ mydat.age$Age))$coefficients
+  func.lm   <- summary(lm(mydat.age$ResidCBF ~ mydat.age$Age))$coefficients
   struct.lm <- summary(lm(mydat.age$StructCBF ~ mydat.age$Age))$coefficients
   raw.lm    <- summary(lm(mydat.age$RawCBF ~ mydat.age$Age))$coefficients
-  functhick.lm   <- summary(lm(mydat.thick$FuncCBF ~ mydat.thick$Thick))$coefficients
-  structthick.lm <- summary(lm(mydat.thick$StructCBF ~ mydat.thick$Thick))$coefficients
-  rawthick.lm    <- summary(lm(mydat.thick$RawCBF ~ mydat.thick$Thick))$coefficients 
+#  functhick.lm   <- summary(lm(mydat.thick$ResidCBF ~ mydat.thick$Thick))$coefficients
+#  structthick.lm <- summary(lm(mydat.thick$StructCBF ~ mydat.thick$Thick))$coefficients
+#  rawthick.lm    <- summary(lm(mydat.thick$RawCBF ~ mydat.thick$Thick))$coefficients 
   myroi.dataframe <- data.frame(
       FuncAgeEst=func.lm[2,'Estimate'], FuncAgeStE=func.lm[2, 'Std. Error'], FuncAgePVal=func.lm[2, 'Pr(>|t|)'], 
       StructAgeEst=struct.lm[2,'Estimate'], StructAgeStE=struct.lm[2, 'Std. Error'], StructAgePVal=struct.lm[2, 'Pr(>|t|)'], 
-      RawAgeEst=raw.lm[2,'Estimate'], RawAgeStE=raw.lm[2, 'Std. Error'], RawAgePVal=raw.lm[2, 'Pr(>|t|)'], 
-      FuncThickEst=functhick.lm[2, 'Estimate'], FuncThickSte=functhick.lm[2, 'Std. Error'], FuncThickPVal=functhick.lm[2, 'Pr(>|t|)'], 
-      StructThickEst=structthick.lm[2, 'Estimate'], StructThickSte=structthick.lm[2, 'Std. Error'], 
-                                                                                        StructThickPVal=structthick.lm[2, 'Pr(>|t|)'], 
-      RawThickEst=rawthick.lm[2, 'Estimate'], RawThickSte=rawthick.lm[2, 'Std. Error'], RawThickPVal=rawthick.lm[2, 'Pr(>|t|)'])
-  rownames(myroi.dataframe) <-aal$label_name[roi]
+      RawAgeEst=raw.lm[2,'Estimate'], RawAgeStE=raw.lm[2, 'Std. Error'], RawAgePVal=raw.lm[2, 'Pr(>|t|)']) #, 
+#      FuncThickEst=functhick.lm[2, 'Estimate'], FuncThickSte=functhick.lm[2, 'Std. Error'], FuncThickPVal=functhick.lm[2, 'Pr(>|t|)'], 
+#      StructThickEst=structthick.lm[2, 'Estimate'], StructThickSte=structthick.lm[2, 'Std. Error'], 
+#                                                                                        StructThickPVal=structthick.lm[2, 'Pr(>|t|)'], 
+ #     RawThickEst=rawthick.lm[2, 'Estimate'], RawThickSte=rawthick.lm[2, 'Std. Error'], RawThickPVal=rawthick.lm[2, 'Pr(>|t|)'])
+  if(is.na(as.numeric(as.vector(myrois$ROINum)[roi]))){
+    rownames(myroi.dataframe) <- 'DMN'
+  }  else {
+    rownames(myroi.dataframe) <- as.character(aal$label_name[as.numeric(as.vector(myrois$ROINum)[roi])])
+  }
   peds.stat <- rbind(peds.stat, myroi.dataframe)
 }
+write.csv(peds.stat, 'analysis/population_stats.csv')
 @
 \begin{figure}
+\makebox[\linewidth][c]{
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionHippocampus_L.pdf}
+  \caption{Structurally predicted and residual CBF for left hippocampus.}
+\end{subfigure}
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionPrecuneus_L.pdf}
+  \caption{Structurally predicted and residual CBF for left precuneus.}
+\end{subfigure}
+} \\
+\makebox[\linewidth][c]{
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionPrecentral_L.pdf}
+  \caption{Structurally predicted and residual CBF for left precentral gyrus.}
+\end{subfigure}
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionOccipital_Sup_L.pdf}
+  \caption{Structurally predicted and residual CBF for left superior occipital lobe.}
+\end{subfigure}
+} \\
 \centering
-\begin{subfigure}{11cm}
-  \includegraphics[width=11cm]{figure/FunctionalStructuralDecompositionHippocampus_L.pdf}
-  \caption{Structural and functional CBF for left hippocampus.}
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionDMN.pdf}
+  \caption{Structurally predicted and residual CBF for default mode network.}
 \end{subfigure}
-\begin{subfigure}{11cm}
-  \includegraphics[width=11cm]{figure/FunctionalStructuralDecompositionPrecuneus_L.pdf}
-  \caption{Structural and functional CBF for left precuneus.}
-\end{subfigure}
-\begin{subfigure}{11cm}
-  \includegraphics[width=11cm]{figure/FunctionalStructuralDecompositionOccipital_Sup_L.pdf}
-  \caption{Structural and functional CBF for left occipital lobe.}
-\end{subfigure}
-\caption{Raw, anatomically predicted, and residual CBF as a function of age.  The raw CBF signal contains a mixture of the structural and functional CBF signals,  which do not necessarily trend in the same direction as raw CBF.}
+\caption{Raw, anatomically predicted, and residual CBF as a function of age.  The raw CBF signal contains a mixture of the structurally predicted and residual CBF signals.  The residual CBF shows a spatially heterogeneous longitudinal trajectory of functional specialization, with earlier-developing regions, such as the superior occipital lobe and precentral gyrus, showing less change over adolescence than the later-developing precuneus and hippocampus.  This relative stability is not apparent in the raw or structurally predicted CBF signal.}
 \label{fig:population}
 \end{figure}
 
@@ -566,6 +643,16 @@ Right Precuneus & \Sexpr{peds.stat['Precuneus_R', 'RawAgeEst']}$\pm$\Sexpr{peds.
 \Sexpr{peds.stat['Precuneus_R', 'StructAgePVal']} & & 
 \Sexpr{peds.stat['Precuneus_R', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Precuneus_R', 'FuncAgeStE']} & 
 \Sexpr{peds.stat['Precuneus_R', 'FuncAgePVal']} \\
+Left Precentral & \Sexpr{peds.stat['Precentral_L', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Precentral_L', 'RawAgeStE']} & \Sexpr{peds.stat['Precentral_L', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Precentral_L', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Precentral_L', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Precentral_L', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Precentral_L', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Precentral_L', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Precentral_L', 'FuncAgePVal']} \\
+Right Precentral & \Sexpr{peds.stat['Precentral_R', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Precentral_R', 'RawAgeStE']} & \Sexpr{peds.stat['Precentral_R', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['Precentral_R', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Precentral_R', 'StructAgeStE']} & 
+\Sexpr{peds.stat['Precentral_R', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['Precentral_R', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Precentral_R', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['Precentral_R', 'FuncAgePVal']} \\
 Left Occipital & \Sexpr{peds.stat['Occipital_Sup_L', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_L', 'RawAgeStE']} & \Sexpr{peds.stat['Occipital_Sup_L', 'RawAgePVal']} & & 
 \Sexpr{peds.stat['Occipital_Sup_L', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_L', 'StructAgeStE']} & 
 \Sexpr{peds.stat['Occipital_Sup_L', 'StructAgePVal']} & & 
@@ -576,46 +663,93 @@ Right Occipital & \Sexpr{peds.stat['Occipital_Sup_R', 'RawAgeEst']}$\pm$\Sexpr{p
 \Sexpr{peds.stat['Occipital_Sup_R', 'StructAgePVal']} & & 
 \Sexpr{peds.stat['Occipital_Sup_R', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['Occipital_Sup_R', 'FuncAgeStE']} & 
 \Sexpr{peds.stat['Occipital_Sup_R', 'FuncAgePVal']} \\
+DMN & \Sexpr{peds.stat['DMN', 'RawAgeEst']}$\pm$\Sexpr{peds.stat['DMN', 'RawAgeStE']} & \Sexpr{peds.stat['DMN', 'RawAgePVal']} & & 
+\Sexpr{peds.stat['DMN', 'StructAgeEst']}$\pm$\Sexpr{peds.stat['DMN', 'StructAgeStE']} & 
+\Sexpr{peds.stat['DMN', 'StructAgePVal']} & & 
+\Sexpr{peds.stat['DMN', 'FuncAgeEst']}$\pm$\Sexpr{peds.stat['DMN', 'FuncAgeStE']} & 
+\Sexpr{peds.stat['DMN', 'FuncAgePVal']} \\
 \bottomrule 
 \end{tabular}
 }
-\caption{Statistics from linear models plotted in Figure \ref{fig:population}.  Although the raw and structurally predicted CBF values showed strong trends with age, the trends for the residual CBF was more variable.  Strong trends were evident in the hippocampus and precuneus, but not in occipital cortex.  Slope is given in units of CBF (ml/100g/min) per year.}
+\caption{Statistics from linear models plotted in Figure \ref{fig:population}.  Although the raw and structurally predicted CBF values showed strong trends with age, the trends for the residual CBF was more variable.  Residual CBF was strongly associated with age in the hippocampus and precuneus, but less so in superior occipital cortex and the precentral gyrus. This may suggest that there is a lesser degree of functional specialization in the  precentral gyrus and occipital cortex than in hippocampus and precuneus throughout adolescence. Slope is given in units of CBF (ml/100g/min) per year.}
 \label{tab:population_stats}
 \end{table}
 
-To demonstrate the utility and plausibility of the anatomically predicted and residual CBF in a population study of interest, we examined the dependence of the two signals as a function of age in a large pediatric dataset.  We found that in all regions, raw CBF decreased in a roughly linear fashion with age.  The structurally predicted CBF also decreased with age, but the residual CBF had a regionally varying trend.  In the hippocampus, the residual CBF increased with age; in precuneus, it decreased with age; and in the occipital cortex, it stayed roughly constant.  Plots for the left hemisphere are shown in Figure \ref{fig:population}; trends were roughly symmetric across hemispheres.  Statistical analysis of the dependency on age is given in Table \ref{tab:population_stats}. 
+To return to the motivating problem of this work, we examined whether observed perfusion changes throughout adolescent development are predicted by a global model relating brain structure to perfusion.  We examined trends from a variety of areas representing distinct functional domains and developmental characteristics.  The hippocampus and precuneus represent higher-order memory and cognitive functions \cite{cavanna_precuneus:_2006}, and the occipital cortex and precentral gyrus represent sensorimotor regions that are presumed to mature relatively early in development \cite{gogtay_dynamic_2004,rueckriegel_influence_2008}.  The default mode network (DMN), a collection of regions that are most active when subjects are not specifically engaged in any externally directed task \cite{buckner_brains_2008}, continues to undergo maturation during adolescence \cite{uddin_dynamic_2011,supekar_development_2010}.  We therefore also examined the CBF trends for the most consistent and conservative definition of the DMN, consisting of left and right precuneus, medial orbitofrontal cortex, and angular gyrus \cite{buckner_brains_2008}.  
+
+CBF trends are plotted in Figure \ref{fig:population}, with quantitative results in Table \ref{tab:population_stats}.  We found that although both the raw perfusion values and structurally predicted perfusion changed throughout adolescence in all regions examined, the functional specialization of different regions, as measured by the residual CBF values, followed a regionally varying trajectory.  Hippocampal and precuneal residual CBF values showed a strong correlation with age, whereas the residual CBF values were not as strongly associated with age in the superior occipital cortex and the precentral gyrus. These trends were bilateral (see plots for the right hemisphere in Supplementary Material, section \ref{sec:supplement}).  With the exception of the hippocampus, the structurally predicted CBF had lower variance than the raw CBF, and in all areas the residual CBF had lower variance than the raw CBF.  For simplicity and to minimize overfitting, we used linear regression and did not include an interaction between age and gender, but it is possible that this analysis masks nonlinear effects. 
 
 \section{Discussion}
-We have presented here a method to separate the anatomically predicted from the residual components of perfusion images as measured by ASL MRI.  Our method to generate structural predictors gives much better prediction accuracy for predicting CBF than either probability maps or cortical thickness.  The test-rest reproducibility of both the structural CBF and the functional CBF is within 10\% of the test-retest reproducibility of ASL, implying that both the structural and functional CBF maps contain stable signals.  In addition, we found that both the anatomically predicted and residual CBF were closely related to age, further implying that both signals reveal true neurobiological processes and are not simply measurement noise. 
+We have presented here a method to separate the anatomically predicted from the residual components of perfusion images as measured by ASL MRI.  Our method to generate structural predictors gives much better prediction accuracy for predicting CBF than either probability maps or cortical thickness.  The test-rest reproducibility of both the structurally predicted and residual CBF is close to that of the raw CBF, implying that both the structurally predicted and residual CBF maps contain stable signals.  In addition, we found that although the anatomically predicted and raw CBF were closely related to age, the residual CBF showed a regionally heterogeneous pattern, suggesting that different brain regions undergo different amounts of functional specialization during development. 
 
-
-\subsection{Interpretation of Structural and Functional CBF}
-The method proposed here takes mean CBF values and structural images as input, and produces as output a ``structural'' CBF image and a ``purely functional'' CBF image.  At first glance, the interpretation of these two outputs may be somewhat obscure, but we believe that when properly understood, each image has an intuitively clear interpretation that can be directly incorporated into clinical characterization of a subject.  By way of analogy, we imagine an experiment tracking subject performance on a test of verbal ability in a group of children.  A researcher may regress out ``nuisance variables,'' such as subject age and familial income, before examining the results.  At the group level, the effect of these nuisance variables may in fact be of interest, but looking at an individual's score without accounting for these nuisance variables would be misleading.  In our method, we consider the ``group effects'' to be structural effects shared across the brain, whereas the ``subject-level'' measurements are the perfusion values at a given voxel.  The group effects of underlying brain structure, similarly to age and familial income in our imagined verbal ability study, may be of independent interest, and we may be interested in looking at regional variations in perfusion as predicted by structural measures.  When looking at a given voxel, though, we may also be interested in the amount of perfusion that is not predicted by the underlying neural architecture, just as one may look at a verbal ability result for a given subject when corrected for age and family income.  For both the structural and functional CBF measurements, the units are in the same units of blood flow as the original mean CBF image.  Negative values for the functional CBF image correspond to areas with less-than-expected perfusion as compared to structurally homologous regions elsewhere in the brain. 
+\subsection{Interpretation of Structurally Predicted and Residual CBF}
+RIPMMARC takes CBF and structural images as input, and produces as output a structurally predicted CBF image and a residual CBF image.  At first glance, the interpretation of these two outputs may be somewhat obscure, but we believe that when properly understood, each image has an intuitively clear interpretation that can be directly incorporated into clinical characterization of a subject.  By way of analogy, we imagine an experiment tracking subject performance on a test of verbal ability in a group of children.  A researcher may regress out ``nuisance variables,'' such as subject age and familial income, before examining the results.  At the group level, the effect of these nuisance variables may in fact be of interest, but looking at an individual's score without accounting for these nuisance variables would be misleading.  In our method, we consider the ``group effects'' to be structural effects shared across the brain, whereas the ``subject-level'' measurements are the perfusion values at a given voxel.  The group effects of underlying brain structure, similarly to age and familial income in our imagined verbal ability study, may be of independent interest, and we may be interested in looking at regional variations in perfusion as predicted by structural measures.  When looking at a given voxel, though, we may also be interested in the amount of perfusion that is not predicted by the underlying neural architecture, just as one may look at a verbal ability result for a given subject when corrected for age and family income.  For both the structurally predicted and residual CBF measurements, the units are in the same units of blood flow as the original mean CBF image.  Negative values for the functional CBF image correspond to areas with less-than-expected perfusion as compared to structurally homologous regions elsewhere in the brain. 
 
 \subsection{Results from Population Study}
-We examined how structurally predicted and residual CBF vary across age in a pediatric population.  We found that although the raw and structurally predicted CBF decreased across all regions, the trends for residual CBF were not constant.  In the precuneus, the residual CBF decreased with age, whereas in the hippocampus, the residual CBF increased with age.  Although it is premature to draw strong conclusions from this preliminary study, these results suggest that in younger children, the hippocampus is hypoperfused relative to a global model relating structure to CBF, whereas the precuneus is relatively hyperperfused.  In both regions, the trend for residual CBF was towards zero, perhaps indicating that global models more accurately describe the perfusion of older subjects.  On the other hand, there was not a significant trend for the occipital lobe, indicating that the ability of a global model to describe the anatomy-perfusion relationship in the occipital lobe does not significantly change over time.  The finding of more significant trends in the hippocampus and precuneus, both members of the default mode network, may indicate a degree of development of the default mode network over development.  However, a more complete study of the trends is necessary before making any conclusions.  
+We examined how structurally predicted and residual CBF vary across age in a pediatric population.  We found that although the raw and structurally predicted CBF decreased across all regions throughout adolescence, the trends for residual CBF exhibited a spatially heterogeneous pattern.  In the precuneus, the residual CBF decreased with age, whereas in the hippocampus, the residual CBF increased with age.  In both regions, the residual CBF showed a strong bilateral correlation with age.  In contrast, the residual CBF in the precentral gyrus and superior occipital cortex showed a much weaker correlation with age. These findings suggest that the functional specialization in some areas follows the cortical structural development, but in other areas displays a distinct trajectory.  For example, the precentral gyrus and the occipital lobe are known to reach their mature cortical thickness relatively early in development \cite{gogtay_dynamic_2004}, and we found that the residual CBF of these areas did not show a strong correlation with age.  On the other hand, the hippocampus has also been found to reach structural maturity relatively early in adolescence \cite{gogtay_dynamic_2004}, but we found a strong correlation between residual CBF and age here.  The precuneus, in contrast, displays significant structural changes throughout adolescence \cite{tamnes_brain_2013}, and the precuneal residual CBF was also found to correlate strongly with age. As a whole, these findings indicate that functional specialization may follow a trajectory that is distinct from that of cortical structural development.  
+
+In all regions examined, the trend throughout adolescence was for the residual CBF to move towards zero, implying that in older adolescents, a global model relating brain structure to perfusion is more accurate than in younger adolescents.   
 
 \subsection{Comparison to Partial Volume Correction Techniques}
-Although the method proposed here falls into the general category of atrophy and structure correction techniques, it has a fundamentally different purpose from standard partial volume correction (PVC) techniques \cite{meltzer_correction_1990,muller-gartner_measurement_1992,thomas_importance_2011} which we believe more directly addresses the question of structure and atrophy correction in perfusion imaging.  PVC aims to recover what the scanner \textit{would have seen} had technical impediments, such as partial volume effects, not interfered with the imaging.  In contrast, we aim to recover both the effect of anatomy on the perfusion image and the perfusion that is independent of anatomy.  This technique has two major advantages over PVC-based approaches.  First, PVC-based approaches typically rely on strong \textit{a priori} knowledge or assumptions about scanner mechanics and tissue properties.  In particular, the assumption of standard ASL PVE techniques that white matter perfusion is 40\% of gray matter perfusion for all subjects is a particularly specious assumption, as even the original study that established that value showed significant variations within control populations \cite{roberts_quantitative_1994}.  In contrast, our method learns the relation between brain structure and perfusion implicitly from the data and is agnostic with respect to scanner properties and modality.  Second, our method approaches the problem of atrophy and structure correction more directly than PVC-based techniques and can yield more biologically meaningful results.  Instead of assuming that the relation between observed perfusion and structure is mediated solely by tissue membership and scanner properties, our approach can model more subtle effects of brain structure that elude standard PVC-based approaches. Similarly, as opposed to PVE-based approaches, which are designed to correct GM perfusion values, our approach can apply to any tissue type.   
+Although the method proposed here falls into the general category of atrophy and structure correction techniques, it has a fundamentally different purpose from standard partial volume correction (PVC) techniques \cite{meltzer_correction_1990,muller-gartner_measurement_1992,thomas_importance_2011}.  We believe that our method more directly addresses the question of structure and atrophy correction in perfusion imaging than PVC-like techniques.  PVC aims to recover what the scanner \textit{would have seen} had technical impediments, such as partial volume effects, not interfered with the imaging.  In contrast, we aim to recover both the effect of anatomy on the perfusion image and the perfusion that is independent of anatomy.  The separation of structural from non-structural perfusion effects is distinct from PVC-based approaches, which incorporate the structural information directly into the output image. This technique has two major advantages over PVC-based approaches.  First, PVC-based approaches typically rely on strong \textit{a priori} knowledge or assumptions about scanner mechanics and tissue properties.  In particular, the assumption of standard ASL PVE techniques that white matter perfusion is 40\% of gray matter perfusion for all subjects is a somewhat specious assumption, as even the original study that established that value showed significant variations within control populations \cite{roberts_quantitative_1994}.  In contrast, our method learns the relation between brain structure and perfusion implicitly from the data and is agnostic with respect to scanner properties and modality.  Second, our method approaches the problem of atrophy and structure correction more directly than PVC-based techniques and can yield more biologically meaningful results.  Instead of assuming that the relation between observed perfusion and structure is mediated solely by tissue membership and scanner properties, our approach can model more subtle effects of brain structure that elude standard PVC-based approaches. Similarly, as opposed to PVE-based approaches, which are designed to correct GM perfusion values, our approach can apply to any tissue type.   
+
 
 \subsection{Consideration of Resolution}
-The different resolutions of arterial spin labeling MRI as compared to T1 MRI present significant challenges when attempting to analyze the relationship between the two modalities.  Because the T1 image is at a much higher resolution than the ASL image, it is difficult to disentangle the effects of scanner characteristics on observed perfusion from true perfusion results.  As opposed to PET imaging, quantitative analysis of ASL scanners using physical or computational phantoms is not widespread, although some initial efforts have been reported \cite{noguchi_quantitative_2007}.  The lack of quantitative tools for analyzing scanner properties complicates the effort to work across resolutions.  To examine the effect of anatomical variation on observed perfusion, we upsampled the ASL images to T1 resolution and corrected in the T1 resolution, as the T1 resolution gives the most information about the underlying anatomy.  On the other hand, upsampling can introduce artifacts of its own and may not be ideal for all studies.  Especially when looking at larger cortical features than those considered here, working at a lower resolution may be more appropriate.   
+The different resolutions of arterial spin labeling MRI as compared to T1 MRI present significant challenges when attempting to analyze the relationship between the two modalities.  Because the T1 image is at a much higher resolution than the ASL image, it is difficult to disentangle the effects of scanner characteristics on observed perfusion from true perfusion results.  As opposed to PET imaging, quantitative analysis of ASL scanners using physical or computational phantoms is not widespread, although some initial efforts have been reported \cite{noguchi_quantitative_2007}.  The lack of quantitative tools for analyzing scanner properties complicates the effort to work across resolutions.  To examine the effect of anatomical variation on observed perfusion, we resampled both the ASL images and the T1 images to 2mm isotropic resolution.  This resolution was observed to minimize interpolation artifacts from the ASL native space while still providing adequate anatomic detail.
 
 \subsection{Limitations}
-Although this work demonstrates that the proposed method has promise, it does leave some unanswered questions that require further study. First, although the results in the pediatric population imply that the signal present in the functional CBF has biological significance, more study is necessary to validate this finding in a variety of populations to further elucidate its utility in broader applications. Second, we have not rigorously examined here how the dictionaries and coefficients vary across patients.  Using only the predicted value from the dictionary learning approach without examining how the predictions are made may in fact throw away useful data, as the global  relationship between structure and perfusion may contain biologically significant information.  To compare the structure-CBF relationship across subjects, though, it would be necessary to learn a consistent dictionary and apply it to all subjects.  Carefully examining the variability of learned dictionaries across subjects and across different populations is necessary to establish appropriate techniques for constructing population-wide dictionaries.  
+Although this work demonstrates that the proposed method has promise, it does leave some unanswered questions that require further study. First, although the results in the pediatric population imply that the signal present in the residual CBF has biological significance, more study is necessary to validate this finding in a variety of populations to further elucidate its utility in broader applications. Second, we have not rigorously examined here how the dictionaries and coefficients vary across patients.  Using only the predicted value from the dictionary learning approach without examining how the predictions are made may in fact throw away useful data, as the   relationship between structure and perfusion itself may contain biologically significant information.  To compare the structure-CBF relationship across subjects, though, it would be necessary to learn a consistent dictionary and apply it to all subjects.  Carefully examining the variability of learned dictionaries across subjects and across different populations is necessary to establish appropriate techniques for constructing population-wide dictionaries.  Third, the residual CBF retains significant amounts of the noise present in the raw CBF images, such as transit effect artifacts from large blood vessels as evident in Figure \ref{fig:sample_subj_imgs}.
 
 \subsection{Future Work}
 \subsubsection{Variations of the Technique}
-In this work, we learned the relationship between brain structure and perfusion on a per-subject basis.  The motivation for this is that although there may be global variations in the function that relates brain structure and perfusion, the function is a global signal over the entire brain, whereas the use of imaging is intended to highlight regionally varying measures of perfusion.  This correction for global signal changes is similar in spirit to the use of relative CBF \cite{aslan_sensitivity_2010}, where correcting for global perfusion has been found to increase the ability to find regional differences in blood flow.   For application to patient populations, though, it may be more appropriate to learn the structure-perfusion relationship in an age-matched control cohort and apply the structure correction to the patient population.  
+In this work, we learned the relationship between brain structure and perfusion on a per-subject basis.  The motivation for this is that although there may be global variations in the function that relates brain structure and perfusion, the function is a global signal over the entire brain, whereas the use of imaging is intended to highlight regionally varying measures of perfusion.  This correction for global signal changes is similar in spirit to the use of relative CBF \cite{aslan_sensitivity_2010}, where correcting for global perfusion has been found to increase the ability to find regional differences in blood flow.   For application to patient populations, though, it may be more appropriate to learn the structure-perfusion relationship in an age-matched control cohort and apply the structure correction to the patient population.  Alternatively, it may be ideal to learn eigenpatches from an independent population and project all subjects in the test population to that basis.  
 
-A related question that this study raises is how the structure-perfusion relationship changes across the brain.  It may be more appropriate to learn the structure-perfusion relationship across individual lobes, rather than over the entire brain.  
+A related question that this study raises is how the structure-perfusion relationship changes across the brain.  It may be more appropriate to learn the structure-perfusion relationship across individual lobes, rather than over the entire brain.  RIPMARC can be easily modified to perform such an analysis by sampling the patches and training only over lobes, as opposed to over the whole brain. 
+
+The infrastructure for constructing a patch-based representation of imaging data has many other applications.  It may be possible, for example, to use the patch descriptors to drive registration of images in cases where scalar intensity values are not sufficiently discriminatory.  The patch-based descriptors would allow for a more expansive description of anatomy, similar to landmark-based registration techniques \cite{thompson_surface-based_1996}, while still enabling a dense representation of the images, as is common in voxel-based registration techniques \cite{avants_symmetric_2008}.
 
 \subsubsection{Additional Applications}
-Although this study is limited to the connection between brain structure and perfusion, the method is fundamentally agnostic to imaging modality and can be applied across a wide range of imaging techniques.  An obvious application of this work is atrophy correction for neurodegenerative populations.  Although several studies have shown that brain perfusion, as measured by ASL imaging, decreases in Alzheimer's Disease \cite{wolk_arterial_2012}, the extent to which this decrease could be determined by atrophic and other structural changes has not been addressed using methods similar to the proposed work. 
+Although this study is limited to the connection between brain structure and perfusion, the method is fundamentally agnostic to imaging modality and can be applied across a wide range of imaging techniques.  An obvious application of this work is atrophy correction for neurodegenerative populations \cite{chen_age-associated_2011}.  Although several studies have shown that brain perfusion, as measured by ASL imaging, decreases in Alzheimer's Disease \cite{wolk_arterial_2012}, the extent to which this decrease could be determined by atrophic and other structural changes has not been addressed using methods similar to the proposed work. 
 
 \section{Conclusion}
-The method presented here shows promise in decomposing CBF images into anatomically predicted and residual perfusion components.  The algorithm proposed explains significantly more of the variance in CBF images than the segmentation probability maps commonly used for performing partial volume correction, and therefore may be more suitable for structural correction of perfusion images than tissue segmentation images. 
+The method presented here shows promise in decomposing CBF images into anatomically predicted and residual perfusion components.  The algorithm proposed explains significantly more of the variance in CBF images than the segmentation probability maps commonly used for performing partial volume correction, and therefore may be more suitable for structural correction of perfusion images than tissue segmentation images.  In addition, the method can be used to improve the interpretability of perfusion images by indicating how much of the observed changes in perfusion are caused by global structural trends and how much by localized processes.  This separation of global from local effects can provide greater sensitivity for correlating spatially localized neuronal processes with perfusion images. 
+
+\section{Acknowledgments}
+DJW was supported by NIH awards R01-MH080892, R01-NS081077, and R01-EB014922; JAD was supported by awards P41 EB015893 and R01 MH080729;  and JCG and BMK were supported by T32-EB009384 and HHSN276201000492P. 
 
 \bibliographystyle{elsarticle-num}
 \bibliography{kandel_lib}
+
+\section{Supplementary Figures}
+\label{sec:supplement}
+\begin{figure}
+\makebox[\linewidth][c]{
+\begin{subfigure}{8cm}
+\centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionHippocampus_R.pdf}
+  \caption{Structurally predicted and residual CBF for right hippocampus.}
+\end{subfigure}
+\begin{subfigure}{8cm}
+\centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionPrecuneus_R.pdf}
+  \caption{Structurally predicted and residual CBF for right precuneus.}
+\end{subfigure}
+} \\
+\makebox[\linewidth][c]{
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionPrecentral_R.pdf}
+  \caption{Structurally predicted and residual CBF for right precentral gyrus.}
+\end{subfigure}
+\begin{subfigure}{8cm}
+  \centering
+  \includegraphics[width=8cm]{figure/FunctionalStructuralDecompositionOccipital_Sup_R.pdf}
+  \caption{Structurally predicted and residual CBF for right superior occipital cortex.}
+\end{subfigure}
+}
+\caption{Right-sided components of plots shown in \ref{fig:population}.}
+\label{fig:population_r}
+\end{figure}
+
+
 \end{document}
