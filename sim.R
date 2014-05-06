@@ -11,11 +11,11 @@ nblob <- 300 # number of locations for structure-based activity
 noise <- c(150, 300)
 area <- 37 # brodmann area to take
 randsrc.amp <- 100
-blob.amp <- 45
-speckle.amp <- 5
+blob.amp <- 40
+speckle.amp <- 30
 specklegm.amp <- 5
-smooth.sigma <- 1.5
-nsubj <- 20
+smooth.sigma <- 3
+nsubj <- 40
 
 reseg <- F # recompute segmentation?
 regenerate <- F # regenerate sources and smoothing
@@ -61,10 +61,17 @@ gm.mask[gm.mask>0] <- 1
 antsImageWrite(gm.mask, 'data/simulation/gm_mask.nii.gz')
 
 if(regenerate){
+  lab <- antsImageRead(getANTsRData('mnib'), 3)
+  funcblob <- new('antsImage', 'float', 3)
+  ThresholdImage(3, lab, funcblob, 37, 37)
+  structblob <- new('antsImage', 'float', 3)
+  ThresholdImage(3, lab, structblob, 46, 46)
+  structfuncblob <- new('antsImage', 'float', 3)
+  ThresholdImage(3, lab, structfuncblob, 6, 6)
   
   mynoise <- rep(0, length(gm.mask[gm.mask>0]))
   locs <- round(runif(nloc, min=0, max=length(mynoise)))
-  mynoise[locs] <- 1 #runif(length(locs), min=noise[1], max=noise[2])
+  mynoise[locs] <- 1 
   mynoise.img <- antsImageClone(gm.mask)
   mynoise.img[mymask>0] <- 0
   mynoise.img[gm.mask>0] <- mynoise
@@ -73,27 +80,58 @@ if(regenerate){
   system(paste("SurfaceBasedSmoothing data/simulation/noise.nii.gz 1", 
                "data/simulation/gm_mask.nii.gz data/simulation/noise_smooth.nii.gz 5"))
   mynoise.img <- antsImageRead('data/simulation/noise_smooth.nii.gz', 3)
-  myblob <- antsImageRead('data/simulation/blob.nii.gz', 3)
-  system(paste("SurfaceBasedSmoothing data/simulation/blob.nii.gz 1", 
-               "data/simulation/gm_mask.nii.gz data/simulation/blob_smooth.nii.gz 5"))
+  
+  antsImageWrite(structblob, 'data/simulation/structblob.nii.gz')
+  antsImageWrite(funcblob, 'data/simulation/funcblob.nii.gz')
+  antsImageWrite(structfuncblob, 'data/simulation/structfuncblob.nii.gz')
+  system(paste("SurfaceBasedSmoothing data/simulation/structblob.nii.gz 1", 
+             "data/simulation/gm_mask.nii.gz data/simulation/structblob_smooth.nii.gz 5"))
+  system(paste("SurfaceBasedSmoothing data/simulation/funcblob.nii.gz 1", 
+             "data/simulation/gm_mask.nii.gz data/simulation/funcblob_smooth.nii.gz 5"))
+  system(paste("SurfaceBasedSmoothing data/simulation/structfuncblob.nii.gz 1", 
+         "data/simulation/gm_mask.nii.gz data/simulation/structfuncblob_smooth.nii.gz 5"))
 }
-
+funcblob <- antsImageRead('data/simulation/funcblob_smooth.nii.gz', 3)
+structblob <- antsImageRead('data/simulation/structblob_smooth.nii.gz', 3)
+structfuncblob <- antsImageRead('data/simulation/structfuncblob_smooth.nii.gz', 3)
+mymask <- antsImageRead('data/simulation/cerebrum.nii.gz', 3)
 myblob <- antsImageRead('data/simulation/blob_smooth.nii.gz', 3)
 src.img <- antsImageRead('data/simulation/noise_smooth.nii.gz', 3)
 
 for(i in 1:nsubj){
+  gm <- antsImageRead('data/simulation/gm.nii.gz', 3)
   func <- antsImageClone(t1)
+  structfunc <- antsImageClone(t1)
+  structfunc[structfunc!=0] <- 0
   func[func != 0] <- 0
+  purelyfunc <- antsImageClone(t1)
+  purelyfunc[purelyfunc!=0] <- 0 
+  gm[mymask > 0] <- gm[mymask > 0] + (structblob[mymask>0]) * runif(1, min=0, max=0.5) * (i %% 2) + 
+    structfuncblob[mymask>0] * runif(1, min=0, max=0.5) * (i %% 2) +
+    rnorm(length(mymask[mymask>0]), sd=0.5) 
+  SmoothImage(3, gm, 1.5, gm)
+  
   func[mymask>0] <- csf[mymask>0] * 5 +
-    gm[mymask>0] * 100 +  wm[mymask>0] * 0.4 * 100 + 
-    src.img[mymask>0] * randsrc.amp * i %% 2 + 
+    gm[mymask>0] * 100 + 
+    wm[mymask>0] * 0.4 * 100 + 
     rnorm(length(mymask[mymask>0]), sd=10) * speckle.amp + 
-    myblob[mymask>0] * blob.amp * i %% 2
-  func[gm.mask>0] <- func[gm.mask>0] + 
-    rnorm(length(gm.mask[gm.mask>0]), sd=10) * specklegm.amp 
+    funcblob[mymask>0] * 100 * runif(1, min=0, max=0.5) * i %% 2
+  func[mymask>0] <- func[mymask>0] + 
+    structfuncblob[mymask > 0] * 100 * runif(1, min=0, max=0.5) * i %% 2
+    #rnorm(length(gm.mask[gm.mask>0]), sd=10) * specklegm.amp 
   SmoothImage(3, func, smooth.sigma, func)
-  antsImageWrite(func, paste('data/simulation/func', 
+  antsImageWrite(func, paste('data/simulation/imgs/perfusion', 
                              sprintf('%.2d', i), '.nii.gz', sep=''))
+  mydata <- data.frame(func=func[mymask>0], csf=csf[mymask>0], gm=gm[mymask>0], 
+                       wm=wm[mymask>0])
+  mylm <- lm(func ~ csf + gm + wm, data=mydata)
+  purelyfunc[mymask > 0] <- resid(mylm)
+  structfunc[mymask > 0] <- fitted(mylm)
+  antsImageWrite(purelyfunc, paste('data/simulation/imgs/func', 
+                                   sprintf('%.2d', i), '.nii.gz', sep=''))
+  antsImageWrite(structfunc, paste('data/simulation/imgs/struct', 
+                                   sprintf('%.2d', i), '.nii.gz', sep=''))  
+  
   if(aslres){
     ResampleImageBySpacing(list(3, func, func, 1, 1, 1))
     antsImageWrite(func, 'data/simulation/func_upsample.nii.gz')
